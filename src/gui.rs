@@ -21,12 +21,13 @@ pub fn build_ui(app: &Application) {
 
     let flowbox = FlowBox::builder()
         .valign(gtk::Align::Start)
-        .halign(gtk::Align::Start)
-        .max_children_per_line(3)
-        .min_children_per_line(3)
+        .halign(gtk::Align::Fill)
         .selection_mode(gtk::SelectionMode::None)
         .hexpand(true)
         .vexpand(true)
+        .homogeneous(true)
+        .row_spacing(10)
+        .column_spacing(10)
         .build();
 
     scrolled_window.set_child(Some(&flowbox));
@@ -90,10 +91,9 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
                             || path.ends_with(".jpeg")
                         {
                             let image = Image::from_file(path);
-                            image.set_pixel_size(200);
+                            image.set_pixel_size(150);
 
-                            let button = Button::new();
-                            button.set_child(Some(&image));
+                            let button = Button::builder().child(&image).build();
 
                             let path_clone = path.to_string();
                             button.connect_clicked(move |_| {
