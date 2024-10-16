@@ -1,4 +1,4 @@
 ## HyprpaperGUI
 
 - Requirements:
-- IPC must be enabled!
+  - IPC must be enabled!
