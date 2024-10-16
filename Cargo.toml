@@ -1,0 +1,19 @@
+[package]
+name = "hyprpapergui"
+version = "0.1.0"
+authors = ["Nyx <nnyyxxxx@protonmail.com>"]
+license = "GPL-2.0"
+description = "GUI for configuring Hyprpaper, written in blazingly fast Rust!"
+repository = "https://github.com/nnyyxxxx/hyprpapergui.git"
+readme = "readme.md"
+keywords = [
+    "gui",
+    "hyprland",
+    "wayland",
+    "wallpaper",
+]
+categories = ["gui"]
+edition = "2021"
+
+[dependencies]
+gtk = { version = "0.9.2", package = "gtk4" }
