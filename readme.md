@@ -10,7 +10,7 @@ An unofficial GUI for setting wallpapers with Hyprpaper, built with GTK4 and Rus
 ## Differences between other GUI wallpaper pickers:
 - **Rust** - Built with Rust, so it's blazingly fast and memory-safe.
 - **No dependencies** - Unlike other GUI wallpaper pickers, Hyprwall doesn't have any package dependencies (other than rust), so it's lightweight and easy to install.
-- **Minimalist** - Hyprwall is minimalist the source code is very small compared to other wallpaper pickers e.g. (waypaper).
+- **Minimalist** - Hyprwall is minimalist, the source code is very small compared to other wallpaper pickers e.g. (waypaper).
 - **Wrapping** - Hyprwall supports wrapping, so if you choose to you can have all wallpapers shown in the GUI at once (depends on window size).
 
 ## Requirements
