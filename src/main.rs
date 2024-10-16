@@ -1,7 +1,6 @@
 mod gui;
 
-use gtk::prelude::*;
-use gtk::Application;
+use gtk::{prelude::*, Application};
 use std::process::Command;
 
 fn main() {

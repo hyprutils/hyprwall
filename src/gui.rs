@@ -1,5 +1,4 @@
-use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow};
+use gtk::{prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -34,7 +33,7 @@ pub fn build_ui(app: &Application) {
 
     let flowbox_ref = Rc::new(RefCell::new(flowbox));
 
-    let choose_folder_button = Button::with_label("Choose Image Folder");
+    let choose_folder_button = Button::with_label("Change wallpaper folder");
     let flowbox_clone = Rc::clone(&flowbox_ref);
     let window_weak = window.downgrade();
     choose_folder_button.connect_clicked(move |_| {
@@ -53,7 +52,7 @@ pub fn build_ui(app: &Application) {
 
 fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>) {
     let dialog = gtk::FileChooserDialog::new(
-        Some("Choose Image Folder"),
+        Some("Change wallpaper folder"),
         Some(window),
         gtk::FileChooserAction::SelectFolder,
         &[
