@@ -1,7 +1,11 @@
-use gtk::{prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow};
+use gtk::{prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow, gio};
 use std::cell::RefCell;
+use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use shellexpand;
+
+const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 
 pub fn build_ui(app: &Application) {
     let window = ApplicationWindow::builder()
@@ -47,6 +51,11 @@ pub fn build_ui(app: &Application) {
     main_box.append(&scrolled_window);
 
     window.set_child(Some(&main_box));
+
+    if let Some(last_path) = load_last_path() {
+        load_images(&last_path, &flowbox_ref);
+    }
+
     window.present();
 }
 
@@ -61,11 +70,16 @@ fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>) {
         ],
     );
 
+    if let Some(last_path) = load_last_path() {
+        let _ = dialog.set_current_folder(Some(&gio::File::for_path(last_path)));
+    }
+
     let flowbox_clone = Rc::clone(flowbox);
     dialog.connect_response(move |dialog, response| {
         if response == gtk::ResponseType::Accept {
             if let Some(folder) = dialog.file().and_then(|f| f.path()) {
                 load_images(&folder, &flowbox_clone);
+                save_last_path(&folder);
             }
         }
         dialog.close();
@@ -80,15 +94,12 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
         flowbox.remove(&child);
     }
 
-    if let Ok(entries) = std::fs::read_dir(folder) {
+    if let Ok(entries) = fs::read_dir(folder) {
         for entry in entries.filter_map(Result::ok) {
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_file() {
                     if let Some(path) = entry.path().to_str() {
-                        if path.ends_with(".png")
-                            || path.ends_with(".jpg")
-                            || path.ends_with(".jpeg")
-                        {
+                        if path.ends_with(".png") || path.ends_with(".jpg") || path.ends_with(".jpeg") {
                             let image = Image::from_file(path);
                             image.set_pixel_size(150);
 
@@ -96,7 +107,6 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
 
                             let path_clone = path.to_string();
                             button.connect_clicked(move |_| {
-                                println!("Setting wallpaper: {}", path_clone);
                                 crate::set_wallpaper(&path_clone);
                             });
 
@@ -107,4 +117,17 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
             }
         }
     }
+}
+
+fn load_last_path() -> Option<PathBuf> {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    fs::read_to_string(config_path).ok().map(PathBuf::from)
+}
+
+fn save_last_path(path: &PathBuf) {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    if let Some(parent) = PathBuf::from(&config_path).parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    fs::write(config_path, path.to_str().unwrap_or("")).ok();
 }
