@@ -4,6 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
 use shellexpand;
+use std::io::Read;
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 
@@ -121,7 +122,18 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
 
 fn load_last_path() -> Option<PathBuf> {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
-    fs::read_to_string(config_path).ok().map(PathBuf::from)
+    if let Ok(mut file) = fs::File::open(config_path) {
+        let mut contents = String::new();
+        if file.read_to_string(&mut contents).is_ok() {
+            for line in contents.lines() {
+                if line.starts_with("folder = ") {
+                    let path = line.trim_start_matches("folder = ");
+                    return Some(PathBuf::from(shellexpand::tilde(path).into_owned()));
+                }
+            }
+        }
+    }
+    None
 }
 
 fn save_last_path(path: &PathBuf) {
@@ -129,5 +141,6 @@ fn save_last_path(path: &PathBuf) {
     if let Some(parent) = PathBuf::from(&config_path).parent() {
         fs::create_dir_all(parent).ok();
     }
-    fs::write(config_path, path.to_str().unwrap_or("")).ok();
+    let content = format!("[Settings]\nfolder = {}", path.to_str().unwrap_or(""));
+    fs::write(config_path, content).ok();
 }
