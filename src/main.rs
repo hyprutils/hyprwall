@@ -6,7 +6,7 @@ use std::process::Command;
 
 fn main() {
     let app = Application::builder()
-        .application_id("nnyyxxxx.hyprpapergui")
+        .application_id("nnyyxxxx.hyprwall")
         .build();
 
     app.connect_activate(gui::build_ui);

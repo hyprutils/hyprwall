@@ -1,6 +1,6 @@
 <div align='center'>
 
-## HyprpaperGUI
+## Hyprwall
 
 ![Preview](.github/preview.png)
 
