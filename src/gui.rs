@@ -159,7 +159,7 @@ fn choose_folder(
 
 fn load_images(folder: &Path, flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
     {
-        let mut flowbox = flowbox.borrow_mut();
+        let flowbox = flowbox.borrow_mut();
         while let Some(child) = flowbox.first_child() {
             flowbox.remove(&child);
         }
@@ -183,7 +183,7 @@ fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Im
     }
 
     {
-        let mut flowbox = flowbox.borrow_mut();
+        let flowbox = flowbox.borrow_mut();
         for path in batch {
             let image = Image::from_file(&path);
             image.set_pixel_size(250);
