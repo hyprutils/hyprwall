@@ -307,6 +307,12 @@ fn load_images(
                     });
                     button.add_controller(motion_controller);
 
+                    let file_name = Path::new(&path_clone)
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or("Unknown");
+                    button.set_tooltip_text(Some(file_name));
+
                     button.connect_clicked(move |_| match crate::set_wallpaper(&path_clone) {
                         Ok(_) => println!("Wallpaper set successfully"),
                         Err(e) => eprintln!("Error setting wallpaper: {}", e),
