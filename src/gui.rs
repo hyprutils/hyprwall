@@ -2,10 +2,11 @@ use glib::ControlFlow;
 use gtk::gdk::Texture;
 use gtk::gdk_pixbuf::Pixbuf;
 use gtk::{
-    gdk, gio, glib, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image,
-    ScrolledWindow,
+    gdk, gio, glib, prelude::*, Application, ApplicationWindow, Box as GtkBox, Button, FlowBox,
+    Image, MenuButton, PopoverMenu, ScrolledWindow,
 };
 use parking_lot::Mutex;
+use rand::seq::SliceRandom;
 use rayon::prelude::*;
 use std::{
     cell::RefCell,
@@ -144,9 +145,28 @@ pub fn build_ui(app: &Application) {
         }
     });
 
-    let main_box = gtk::Box::new(gtk::Orientation::Vertical, 5);
-    main_box.append(&choose_folder_button);
+    let sort_button = MenuButton::new();
+    sort_button.set_label("Sort");
+    let sort_menu = gio::Menu::new();
+    sort_menu.append(Some("Date"), Some("app.sort_by_date"));
+    sort_menu.append(Some("Name"), Some("app.sort_by_name"));
+    let popover = PopoverMenu::from_model(Some(&sort_menu));
+    sort_button.set_popover(Some(&popover));
+
+    let random_button = Button::with_label("Random");
+    let exit_button = Button::with_label("Exit");
+
+    let bottom_box = GtkBox::new(gtk::Orientation::Horizontal, 10);
+    bottom_box.set_margin_top(10);
+    bottom_box.set_margin_bottom(10);
+    bottom_box.set_halign(gtk::Align::Center);
+    bottom_box.append(&sort_button);
+    bottom_box.append(&random_button);
+    bottom_box.append(&exit_button);
+
+    let main_box = GtkBox::new(gtk::Orientation::Vertical, 0);
     main_box.append(&scrolled_window);
+    main_box.append(&bottom_box);
 
     window.set_child(Some(&main_box));
 
@@ -161,6 +181,29 @@ pub fn build_ui(app: &Application) {
                 glib::ControlFlow::Break
             });
         }
+    });
+
+    let sort_by_date_action = gio::SimpleAction::new("sort_by_date", None);
+    sort_by_date_action.connect_activate(|_, _| {
+        println!("Sorting by date");
+    });
+    app.add_action(&sort_by_date_action);
+
+    let sort_by_name_action = gio::SimpleAction::new("sort_by_name", None);
+    sort_by_name_action.connect_activate(|_, _| {
+        println!("Sorting by name");
+    });
+    app.add_action(&sort_by_name_action);
+
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    let image_loader_clone = Rc::clone(&image_loader);
+    random_button.connect_clicked(move |_| {
+        set_random_wallpaper(&flowbox_clone, &image_loader_clone);
+    });
+
+    let app_clone = app.clone();
+    exit_button.connect_clicked(move |_| {
+        app_clone.quit();
     });
 
     window.present();
@@ -282,4 +325,35 @@ fn save_last_path(path: &Path) {
     }
     let content = format!("[Settings]\nfolder = {}", path.to_str().unwrap_or(""));
     let _ = fs::write(config_path, content);
+}
+
+fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
+    let image_loader = image_loader.borrow();
+    if let Some(current_folder) = &image_loader.current_folder {
+        if let Ok(entries) = fs::read_dir(current_folder) {
+            let images: Vec<_> = entries
+                .filter_map(|entry| {
+                    entry.ok().and_then(|e| {
+                        let path = e.path();
+                        if path.is_file()
+                            && matches!(
+                                path.extension().and_then(|e| e.to_str()),
+                                Some("png" | "jpg" | "jpeg")
+                            )
+                        {
+                            Some(path)
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .collect();
+
+            if let Some(random_image) = images.choose(&mut rand::thread_rng()) {
+                if let Some(path_str) = random_image.to_str() {
+                    crate::set_wallpaper(path_str);
+                }
+            }
+        }
+    }
 }
