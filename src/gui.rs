@@ -26,6 +26,13 @@ struct ImageCache {
     order: VecDeque<PathBuf>,
 }
 
+struct ImageLoader {
+    queue: VecDeque<PathBuf>,
+    current_folder: Option<PathBuf>,
+    cache: Arc<Mutex<ImageCache>>,
+    cancel_flag: Option<Arc<AtomicBool>>,
+}
+
 impl ImageCache {
     fn new() -> Self {
         Self {
@@ -35,13 +42,10 @@ impl ImageCache {
     }
 
     fn get(&mut self, path: &Path) -> Option<gdk::Texture> {
-        if let Some(texture) = self.cache.get(path) {
+        self.cache.get(path).cloned().inspect(|_| {
             self.order.retain(|p| p != path);
             self.order.push_front(path.to_path_buf());
-            Some(texture.clone())
-        } else {
-            None
-        }
+        })
     }
 
     fn insert(&mut self, path: PathBuf, texture: gdk::Texture) {
@@ -55,22 +59,13 @@ impl ImageCache {
     }
 
     fn get_or_insert(&mut self, path: &Path, max_size: i32) -> Option<Texture> {
-        if let Some(texture) = self.get(path) {
-            Some(texture)
-        } else {
+        self.get(path).or_else(|| {
             let pixbuf = Pixbuf::from_file_at_scale(path, max_size, max_size, true).ok()?;
             let texture = Texture::for_pixbuf(&pixbuf);
             self.insert(path.to_path_buf(), texture.clone());
             Some(texture)
-        }
+        })
     }
-}
-
-struct ImageLoader {
-    queue: VecDeque<PathBuf>,
-    current_folder: Option<PathBuf>,
-    cache: Arc<Mutex<ImageCache>>,
-    cancel_flag: Option<Arc<AtomicBool>>,
 }
 
 impl ImageLoader {
@@ -84,10 +79,9 @@ impl ImageLoader {
     }
 
     fn load_folder(&mut self, folder: &Path) {
-        if let Some(flag) = &self.cancel_flag {
-            flag.store(true, Ordering::Relaxed);
+        if let Some(flag) = self.cancel_flag.as_ref() {
+            flag.store(true, Ordering::Relaxed)
         }
-
         self.queue.clear();
         self.current_folder = Some(folder.to_path_buf());
         if let Ok(entries) = fs::read_dir(folder) {
@@ -313,8 +307,9 @@ fn load_images(
                     });
                     button.add_controller(motion_controller);
 
-                    button.connect_clicked(move |_| {
-                        crate::set_wallpaper(&path_clone);
+                    button.connect_clicked(move |_| match crate::set_wallpaper(&path_clone) {
+                        Ok(_) => println!("Wallpaper set successfully"),
+                        Err(e) => eprintln!("Error setting wallpaper: {}", e),
                     });
 
                     flowbox.insert(&button, -1);
@@ -379,7 +374,10 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
 
             if let Some(random_image) = images.choose(&mut rand::thread_rng()) {
                 if let Some(path_str) = random_image.to_str() {
-                    crate::set_wallpaper(path_str);
+                    match crate::set_wallpaper(path_str) {
+                        Ok(_) => println!("Wallpaper set successfully"),
+                        Err(e) => eprintln!("Error setting wallpaper: {}", e),
+                    }
                 }
             }
         }

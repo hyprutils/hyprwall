@@ -20,11 +20,12 @@ fn main() {
     app.run();
 }
 
-pub fn set_wallpaper(path: &str) {
+pub fn set_wallpaper(path: &str) -> Result<(), String> {
     println!("Attempting to set wallpaper: {}", path);
 
-    INIT.call_once(|| {
-        *MONITORS.lock() = get_monitors();
+    INIT.call_once(|| match get_monitors() {
+        Ok(monitors) => *MONITORS.lock() = monitors,
+        Err(e) => eprintln!("Failed to get monitors: {}", e),
     });
 
     println!("Found monitors: {:?}", *MONITORS.lock());
@@ -32,8 +33,7 @@ pub fn set_wallpaper(path: &str) {
     let preload_command = format!("hyprctl hyprpaper preload \"{}\"", path);
     println!("Preloading wallpaper: {}", preload_command);
     if !execute_command(&preload_command) {
-        eprintln!("Failed to preload wallpaper");
-        return;
+        return Err("Failed to preload wallpaper".to_string());
     }
 
     println!("Wallpaper preloaded successfully");
@@ -41,12 +41,13 @@ pub fn set_wallpaper(path: &str) {
     for monitor in MONITORS.lock().iter() {
         let set_command = format!("hyprctl hyprpaper wallpaper \"{},{}\"", monitor, path);
         println!("Executing command: {}", set_command);
-        if execute_command(&set_command) {
-            println!("Successfully set wallpaper for {}", monitor);
-        } else {
-            eprintln!("Failed to set wallpaper for {}", monitor);
+        if !execute_command(&set_command) {
+            return Err(format!("Failed to set wallpaper for {}", monitor));
         }
+        println!("Successfully set wallpaper for {}", monitor);
     }
+
+    Ok(())
 }
 
 fn execute_command(command: &str) -> bool {
@@ -69,12 +70,12 @@ fn execute_command(command: &str) -> bool {
     }
 }
 
-fn get_monitors() -> Vec<String> {
+fn get_monitors() -> Result<Vec<String>, String> {
     println!("Retrieving monitor information");
     let output = Command::new("hyprctl")
         .arg("monitors")
         .output()
-        .expect("Failed to execute hyprctl monitors");
+        .map_err(|e| format!("Failed to execute hyprctl monitors: {}", e))?;
 
     let monitors: Vec<String> = String::from_utf8_lossy(&output.stdout)
         .lines()
@@ -90,5 +91,5 @@ fn get_monitors() -> Vec<String> {
         .collect();
 
     println!("Retrieved monitors: {:?}", monitors);
-    monitors
+    Ok(monitors)
 }
