@@ -2,8 +2,8 @@ use glib::ControlFlow;
 use gtk::gdk::Texture;
 use gtk::gdk_pixbuf::Pixbuf;
 use gtk::{
-    gdk, gio, glib, prelude::*, Application, ApplicationWindow, Box as GtkBox, Button, FlowBox,
-    Image, ScrolledWindow,
+    gdk, gio, glib, prelude::*, Application, ApplicationWindow, Box as GtkBox, Button,
+    EventControllerMotion, FlowBox, Image, ScrolledWindow,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
@@ -268,6 +268,16 @@ fn load_images(
                     image.set_pixel_size(250);
 
                     let button = Button::builder().child(&image).build();
+                    button.set_has_frame(false);
+
+                    let motion_controller = EventControllerMotion::new();
+                    motion_controller.connect_enter(glib::clone!(@weak button => move |_, _, _| {
+                        button.set_has_frame(true);
+                    }));
+                    motion_controller.connect_leave(glib::clone!(@weak button => move |_| {
+                        button.set_has_frame(false);
+                    }));
+                    button.add_controller(motion_controller);
 
                     button.connect_clicked(move |_| {
                         crate::set_wallpaper(&path_clone);
