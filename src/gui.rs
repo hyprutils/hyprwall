@@ -2,8 +2,7 @@ use crossbeam_channel::unbounded;
 use glib::ControlFlow;
 use gtk::{
     gdk, gdk::Texture, gdk_pixbuf::Pixbuf, gio, glib, prelude::*, Application, ApplicationWindow,
-    Box as GtkBox, Button, EventControllerMotion, FlowBox, Image, ScrolledWindow,
-    ComboBoxText,
+    Box as GtkBox, Button, ComboBoxText, EventControllerMotion, FlowBox, Image, ScrolledWindow,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
