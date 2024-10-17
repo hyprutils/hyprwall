@@ -5,14 +5,15 @@ use gtk::{
 };
 use parking_lot::Mutex;
 use rayon::prelude::*;
-use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
-use std::fs;
-use std::io::Read;
-use std::path::{Path, PathBuf};
-use std::rc::Rc;
-use std::sync::mpsc;
-use std::sync::Arc;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::{mpsc, Arc},
+};
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 const BATCH_SIZE: usize = 15;
