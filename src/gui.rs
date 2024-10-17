@@ -1,10 +1,8 @@
 use crossbeam_channel::unbounded;
 use glib::ControlFlow;
-use gtk::gdk::Texture;
-use gtk::gdk_pixbuf::Pixbuf;
 use gtk::{
-    gdk, gio, glib, prelude::*, Application, ApplicationWindow, Box as GtkBox, Button,
-    EventControllerMotion, FlowBox, Image, ScrolledWindow,
+    gdk, gdk::Texture, gdk_pixbuf::Pixbuf, gio, glib, prelude::*, Application, ApplicationWindow,
+    Box as GtkBox, Button, EventControllerMotion, FlowBox, Image, ScrolledWindow,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
