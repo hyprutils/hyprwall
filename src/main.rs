@@ -12,7 +12,7 @@ lazy_static! {
 
 static INIT: Once = Once::new();
 
-enum WallpaperBackend {
+pub enum WallpaperBackend {
     Hyprpaper,
     Swaybg,
     Swww,
