@@ -18,7 +18,6 @@ use std::{
 };
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
-const BATCH_SIZE: usize = 15;
 const CACHE_SIZE: usize = 100;
 
 struct ImageCache {
@@ -102,16 +101,6 @@ impl ImageLoader {
             }));
         }
     }
-
-    fn next_batch(&mut self) -> Vec<PathBuf> {
-        self.queue
-            .drain(..BATCH_SIZE.min(self.queue.len()))
-            .collect()
-    }
-
-    fn has_more(&self) -> bool {
-        !self.queue.is_empty()
-    }
 }
 
 pub fn build_ui(app: &Application) {
@@ -174,14 +163,6 @@ pub fn build_ui(app: &Application) {
         }
     });
 
-    let flowbox_clone = Rc::clone(&flowbox_ref);
-    let image_loader_clone = Rc::clone(&image_loader);
-    scrolled_window.connect_edge_reached(move |_, pos| {
-        if pos == gtk::PositionType::Bottom {
-            load_more_images(&flowbox_clone, &image_loader_clone);
-        }
-    });
-
     window.present();
 }
 
@@ -224,32 +205,13 @@ fn load_images(
     flowbox: &Rc<RefCell<FlowBox>>,
     image_loader: &Rc<RefCell<ImageLoader>>,
 ) {
-    {
-        let flowbox = flowbox.borrow_mut();
-        while let Some(child) = flowbox.first_child() {
-            flowbox.remove(&child);
-        }
-    }
+    let mut image_loader = image_loader.borrow_mut();
+    image_loader.load_folder(folder);
 
-    image_loader.borrow_mut().load_folder(folder);
-
-    load_more_images(flowbox, image_loader);
-}
-
-fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
-    let batch;
-    let has_more;
-    let cache;
-    {
-        let mut image_loader = image_loader.borrow_mut();
-        batch = image_loader.next_batch();
-        has_more = image_loader.has_more();
-        cache = Arc::clone(&image_loader.cache);
-    }
+    let batch = image_loader.queue.drain(..).collect::<Vec<_>>();
+    let cache = Arc::clone(&image_loader.cache);
 
     let flowbox_clone = Rc::clone(flowbox);
-    let image_loader_clone = Rc::clone(image_loader);
-
     let (sender, receiver) = mpsc::channel::<(Texture, String)>();
 
     std::thread::spawn(move || {
@@ -260,7 +222,13 @@ fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Im
             .for_each_with(sender.clone(), |s, path| {
                 let texture = {
                     let mut cache = cache.lock();
-                    cache.get_or_insert(path, 250).unwrap()
+                    match cache.get_or_insert(path, 250) {
+                        Some(texture) => texture,
+                        None => {
+                            eprintln!("Failed to load texture for {:?}", path);
+                            return;
+                        }
+                    }
                 };
 
                 let path_clone = path.to_str().unwrap_or("").to_string();
@@ -269,27 +237,27 @@ fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Im
             });
     });
 
-    glib::source::idle_add_local(move || match receiver.try_recv() {
-        Ok((texture, path_clone)) => {
-            let image = Image::from_paintable(Some(&texture));
-            image.set_pixel_size(250);
+    glib::source::idle_add_local(move || {
+        let flowbox = flowbox_clone.borrow_mut();
+        for _ in 0..10 {
+            match receiver.try_recv() {
+                Ok((texture, path_clone)) => {
+                    let image = Image::from_paintable(Some(&texture));
+                    image.set_pixel_size(250);
 
-            let button = Button::builder().child(&image).build();
+                    let button = Button::builder().child(&image).build();
 
-            button.connect_clicked(move |_| {
-                crate::set_wallpaper(&path_clone);
-            });
+                    button.connect_clicked(move |_| {
+                        crate::set_wallpaper(&path_clone);
+                    });
 
-            flowbox_clone.borrow().insert(&button, -1);
-            ControlFlow::Continue
-        }
-        Err(mpsc::TryRecvError::Empty) => {
-            if !has_more {
-                load_more_images(&flowbox_clone, &image_loader_clone);
+                    flowbox.insert(&button, -1);
+                }
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => return ControlFlow::Break,
             }
-            ControlFlow::Continue
         }
-        Err(mpsc::TryRecvError::Disconnected) => ControlFlow::Break,
+        ControlFlow::Continue
     });
 }
 
