@@ -272,12 +272,18 @@ fn load_images(
                     button.set_has_frame(false);
 
                     let motion_controller = EventControllerMotion::new();
-                    motion_controller.connect_enter(glib::clone!(@weak button => move |_, _, _| {
-                        button.set_has_frame(true);
-                    }));
-                    motion_controller.connect_leave(glib::clone!(@weak button => move |_| {
-                        button.set_has_frame(false);
-                    }));
+                    let button_weak = button.downgrade();
+                    motion_controller.connect_enter(move |_, _, _| {
+                        if let Some(button) = button_weak.upgrade() {
+                            button.set_has_frame(true);
+                        }
+                    });
+                    let button_weak = button.downgrade();
+                    motion_controller.connect_leave(move |_| {
+                        if let Some(button) = button_weak.upgrade() {
+                            button.set_has_frame(false);
+                        }
+                    });
                     button.add_controller(motion_controller);
 
                     button.connect_clicked(move |_| {
