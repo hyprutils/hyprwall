@@ -3,7 +3,7 @@ use gtk::gdk::Texture;
 use gtk::gdk_pixbuf::Pixbuf;
 use gtk::{
     gdk, gio, glib, prelude::*, Application, ApplicationWindow, Box as GtkBox, Button, FlowBox,
-    Image, MenuButton, PopoverMenu, ScrolledWindow,
+    Image, ScrolledWindow,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
@@ -145,14 +145,6 @@ pub fn build_ui(app: &Application) {
         }
     });
 
-    let sort_button = MenuButton::new();
-    sort_button.set_label("Sort");
-    let sort_menu = gio::Menu::new();
-    sort_menu.append(Some("Date"), Some("app.sort_by_date"));
-    sort_menu.append(Some("Name"), Some("app.sort_by_name"));
-    let popover = PopoverMenu::from_model(Some(&sort_menu));
-    sort_button.set_popover(Some(&popover));
-
     let random_button = Button::with_label("Random");
     let exit_button = Button::with_label("Exit");
 
@@ -160,7 +152,6 @@ pub fn build_ui(app: &Application) {
     bottom_box.set_margin_top(10);
     bottom_box.set_margin_bottom(10);
     bottom_box.set_halign(gtk::Align::Center);
-    bottom_box.append(&sort_button);
     bottom_box.append(&random_button);
     bottom_box.append(&exit_button);
 
@@ -182,18 +173,6 @@ pub fn build_ui(app: &Application) {
             });
         }
     });
-
-    let sort_by_date_action = gio::SimpleAction::new("sort_by_date", None);
-    sort_by_date_action.connect_activate(|_, _| {
-        println!("Sorting by date");
-    });
-    app.add_action(&sort_by_date_action);
-
-    let sort_by_name_action = gio::SimpleAction::new("sort_by_name", None);
-    sort_by_name_action.connect_activate(|_, _| {
-        println!("Sorting by name");
-    });
-    app.add_action(&sort_by_name_action);
 
     let flowbox_clone = Rc::clone(&flowbox_ref);
     let image_loader_clone = Rc::clone(&image_loader);
