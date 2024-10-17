@@ -6,7 +6,12 @@ license = "GPL-2.0"
 description = "GUI for setting wallpapers with Hyprpaper, written in blazingly fast Rust!"
 repository = "https://github.com/nnyyxxxx/hyprpapergui.git"
 readme = "readme.md"
-keywords = ["gui", "hyprland", "wayland", "wallpaper"]
+keywords = [
+    "gui",
+    "hyprland",
+    "wayland",
+    "wallpaper",
+]
 categories = ["gui"]
 edition = "2021"
 
