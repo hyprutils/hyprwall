@@ -1,5 +1,5 @@
 use gtk::{
-    gio, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow,
+    gio, glib, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow,
 };
 use shellexpand;
 use std::cell::RefCell;
@@ -79,9 +79,18 @@ pub fn build_ui(app: &Application) {
 
     window.set_child(Some(&main_box));
 
-    if let Some(last_path) = load_last_path() {
-        load_images(&last_path, &flowbox_ref, &cache);
-    }
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    let cache_clone = Arc::clone(&cache);
+    window.connect_show(move |_| {
+        if let Some(last_path) = load_last_path() {
+            let flowbox_clone2 = Rc::clone(&flowbox_clone);
+            let cache_clone2 = Arc::clone(&cache_clone);
+            glib::idle_add_local(move || {
+                load_images(&last_path, &flowbox_clone2, &cache_clone2);
+                glib::ControlFlow::Continue
+            });
+        }
+    });
 
     window.present();
 }
@@ -121,7 +130,7 @@ fn choose_folder(
 }
 
 fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>, cache: &Arc<Mutex<ImageCache>>) {
-    let mut flowbox = flowbox.borrow_mut();
+    let flowbox = flowbox.borrow_mut();
     while let Some(child) = flowbox.first_child() {
         flowbox.remove(&child);
     }
