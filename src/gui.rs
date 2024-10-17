@@ -1,4 +1,4 @@
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use crossbeam_channel::unbounded;
 use glib::ControlFlow;
 use gtk::gdk::Texture;
 use gtk::gdk_pixbuf::Pixbuf;
@@ -290,7 +290,7 @@ fn load_images(
             return ControlFlow::Break;
         }
 
-        let mut flowbox = flowbox_clone.borrow_mut();
+        let flowbox = flowbox_clone.borrow_mut();
         for _ in 0..10 {
             match receiver.try_recv() {
                 Ok((texture, path_clone)) => {
