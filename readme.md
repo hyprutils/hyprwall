@@ -24,6 +24,24 @@ An unofficial GUI for setting wallpapers with Hyprpaper, built with GTK4 and Rus
 ### GitHub Releases
 See Hyprwall's [releases page](https://github.com/nnyyxxxx/hyprwall/releases) for downloadable binaries.
 
+### Arch Linux
+There are 2 different [AUR](https://aur.archlinux.org) packages available:
+
+- [hyprwall](https://aur.archlinux.org/packages/hyprwall) - Latest release built from source
+- [hyprwall-bin](https://aur.archlinux.org/packages/hyprwall-bin) - Latest release in binary form
+
+Install the preferred package with:
+```bash
+git clone https://aur.archlinux.org/<package>.git
+cd <package>
+makepkg -si
+```
+
+Or, if you're using an [AUR Helper](https://wiki.archlinux.org/title/AUR_helpers), it's even simpler (using [paru](https://github.com/Morganamilo/paru) as an example):
+```bash
+paru -S <package>
+```
+
 ## Building from source
 1. Install Rust (preferably `rustup`) through your distro's package or [the official script](https://www.rust-lang.org/tools/install)
 2. Install `git`, `pango`, and `gtk4`
@@ -37,6 +55,7 @@ See Hyprwall's [releases page](https://github.com/nnyyxxxx/hyprwall/releases) fo
 
 ## Credits:
 - [Nyx](https://github.com/nnyyxxxx) - Implementing the GUI and maintaining the project
+- [Adam](https://github.com/adamperkowski) - Rust improvements, maintaining the project
 - [Vaxry](https://github.com/vaxerski) - Hyprpaper
 - [rust-gtk](https://github.com/gtk-rs/gtk4-rs) - The GTK4 library
 - [Hyprland](https://github.com/hyprwm/Hyprland) - The window manager
