@@ -16,7 +16,7 @@ categories = ["gui"]
 edition = "2021"
 
 [dependencies]
-gtk = { version = "0.9.2", package = "gtk4", features = ["v4_8"] }
+gtk = { version = "0.9.2", package = "gtk4" }
 glib = { version = "0.18.0", features = ["v2_68"] }
 gio = "0.18.0"
 gdk = "0.18.0"
