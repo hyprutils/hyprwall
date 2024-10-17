@@ -1,4 +1,6 @@
 use glib::ControlFlow;
+use gtk::gdk::Texture;
+use gtk::gdk_pixbuf::Pixbuf;
 use gtk::{
     gdk, gio, glib, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image,
     ScrolledWindow,
@@ -14,8 +16,6 @@ use std::{
     rc::Rc,
     sync::{mpsc, Arc},
 };
-use gtk::gdk_pixbuf::Pixbuf;
-use gtk::gdk::Texture;
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 const BATCH_SIZE: usize = 15;
@@ -264,7 +264,8 @@ fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Im
                 };
 
                 let path_clone = path.to_str().unwrap_or("").to_string();
-                s.send((texture, path_clone)).expect("Failed to send texture");
+                s.send((texture, path_clone))
+                    .expect("Failed to send texture");
             });
     });
 
