@@ -14,6 +14,8 @@ use std::{
     rc::Rc,
     sync::{mpsc, Arc},
 };
+use gtk::gdk_pixbuf::Pixbuf;
+use gtk::gdk::Texture;
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 const BATCH_SIZE: usize = 15;
@@ -50,6 +52,17 @@ impl ImageCache {
         }
         self.cache.insert(path.clone(), texture);
         self.order.push_front(path);
+    }
+
+    fn get_or_insert(&mut self, path: &Path, max_size: i32) -> Option<Texture> {
+        if let Some(texture) = self.get(path) {
+            Some(texture)
+        } else {
+            let pixbuf = Pixbuf::from_file_at_scale(path, max_size, max_size, true).ok()?;
+            let texture = Texture::for_pixbuf(&pixbuf);
+            self.insert(path.to_path_buf(), texture.clone());
+            Some(texture)
+        }
     }
 }
 
@@ -237,7 +250,7 @@ fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Im
     let flowbox_clone = Rc::clone(flowbox);
     let image_loader_clone = Rc::clone(image_loader);
 
-    let (sender, receiver) = mpsc::channel::<(gdk::Texture, String)>();
+    let (sender, receiver) = mpsc::channel::<(Texture, String)>();
 
     std::thread::spawn(move || {
         let num_cores = num_cpus::get();
@@ -247,18 +260,11 @@ fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Im
             .for_each_with(sender.clone(), |s, path| {
                 let texture = {
                     let mut cache = cache.lock();
-                    if let Some(texture) = cache.get(path) {
-                        texture
-                    } else {
-                        let texture = gdk::Texture::from_file(&gio::File::for_path(path)).unwrap();
-                        cache.insert(path.to_path_buf(), texture.clone());
-                        texture
-                    }
+                    cache.get_or_insert(path, 250).unwrap()
                 };
 
                 let path_clone = path.to_str().unwrap_or("").to_string();
-                s.send((texture, path_clone))
-                    .expect("Failed to send texture");
+                s.send((texture, path_clone)).expect("Failed to send texture");
             });
     });
 
