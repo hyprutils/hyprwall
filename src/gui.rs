@@ -1,7 +1,6 @@
 use gtk::{
     gio, glib, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow,
 };
-use shellexpand;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
