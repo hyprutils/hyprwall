@@ -237,6 +237,10 @@ fn load_images(
     let flowbox_clone = Rc::clone(flowbox);
     let (sender, receiver) = mpsc::channel::<(Texture, String)>();
 
+    while let Some(child) = flowbox.borrow().first_child() {
+        flowbox.borrow().remove(&child);
+    }
+
     std::thread::spawn(move || {
         let num_cores = num_cpus::get();
         batch
