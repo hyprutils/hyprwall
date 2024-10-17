@@ -1,19 +1,61 @@
+use glib::ControlFlow;
 use gtk::{
-    gio, glib, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow,
+    gdk, gio, glib, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image,
+    ScrolledWindow,
 };
+use parking_lot::Mutex;
+use rayon::prelude::*;
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::mpsc;
+use std::sync::Arc;
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 const BATCH_SIZE: usize = 15;
+const CACHE_SIZE: usize = 100;
+
+struct ImageCache {
+    cache: HashMap<PathBuf, gdk::Texture>,
+    order: VecDeque<PathBuf>,
+}
+
+impl ImageCache {
+    fn new() -> Self {
+        Self {
+            cache: HashMap::with_capacity(CACHE_SIZE),
+            order: VecDeque::with_capacity(CACHE_SIZE),
+        }
+    }
+
+    fn get(&mut self, path: &Path) -> Option<gdk::Texture> {
+        if let Some(texture) = self.cache.get(path) {
+            self.order.retain(|p| p != path);
+            self.order.push_front(path.to_path_buf());
+            Some(texture.clone())
+        } else {
+            None
+        }
+    }
+
+    fn insert(&mut self, path: PathBuf, texture: gdk::Texture) {
+        if self.cache.len() >= CACHE_SIZE {
+            if let Some(old_path) = self.order.pop_back() {
+                self.cache.remove(&old_path);
+            }
+        }
+        self.cache.insert(path.clone(), texture);
+        self.order.push_front(path);
+    }
+}
 
 struct ImageLoader {
     queue: VecDeque<PathBuf>,
     current_folder: Option<PathBuf>,
+    cache: Arc<Mutex<ImageCache>>,
 }
 
 impl ImageLoader {
@@ -21,6 +63,7 @@ impl ImageLoader {
         Self {
             queue: VecDeque::new(),
             current_folder: None,
+            cache: Arc::new(Mutex::new(ImageCache::new())),
         }
     }
 
@@ -28,23 +71,28 @@ impl ImageLoader {
         self.queue.clear();
         self.current_folder = Some(folder.to_path_buf());
         if let Ok(entries) = fs::read_dir(folder) {
-            for entry in entries.filter_map(Result::ok) {
-                if let Ok(file_type) = entry.file_type() {
-                    if file_type.is_file() {
-                        let path = entry.path();
-                        if let Some(extension) = path.extension() {
-                            if ["png", "jpg", "jpeg"].contains(&extension.to_str().unwrap_or("")) {
-                                self.queue.push_back(path);
-                            }
-                        }
+            self.queue.extend(entries.filter_map(|entry| {
+                entry.ok().and_then(|e| {
+                    let path = e.path();
+                    if path.is_file()
+                        && matches!(
+                            path.extension().and_then(|e| e.to_str()),
+                            Some("png" | "jpg" | "jpeg")
+                        )
+                    {
+                        Some(path)
+                    } else {
+                        None
                     }
-                }
-            }
+                })
+            }));
         }
     }
 
     fn next_batch(&mut self) -> Vec<PathBuf> {
-        self.queue.drain(..BATCH_SIZE.min(self.queue.len())).collect()
+        self.queue
+            .drain(..BATCH_SIZE.min(self.queue.len()))
+            .collect()
     }
 
     fn has_more(&self) -> bool {
@@ -107,7 +155,7 @@ pub fn build_ui(app: &Application) {
             let image_loader_clone2 = Rc::clone(&image_loader_clone);
             glib::idle_add_local(move || {
                 load_images(&last_path, &flowbox_clone2, &image_loader_clone2);
-                glib::ControlFlow::Continue
+                glib::ControlFlow::Break
             });
         }
     });
@@ -157,7 +205,11 @@ fn choose_folder(
     dialog.show();
 }
 
-fn load_images(folder: &Path, flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
+fn load_images(
+    folder: &Path,
+    flowbox: &Rc<RefCell<FlowBox>>,
+    image_loader: &Rc<RefCell<ImageLoader>>,
+) {
     {
         let flowbox = flowbox.borrow_mut();
         while let Some(child) = flowbox.first_child() {
@@ -165,10 +217,7 @@ fn load_images(folder: &Path, flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<
         }
     }
 
-    {
-        let mut image_loader = image_loader.borrow_mut();
-        image_loader.load_folder(folder);
-    }
+    image_loader.borrow_mut().load_folder(folder);
 
     load_more_images(flowbox, image_loader);
 }
@@ -176,60 +225,85 @@ fn load_images(folder: &Path, flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<
 fn load_more_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
     let batch;
     let has_more;
+    let cache;
     {
         let mut image_loader = image_loader.borrow_mut();
         batch = image_loader.next_batch();
         has_more = image_loader.has_more();
+        cache = Arc::clone(&image_loader.cache);
     }
 
-    {
-        let flowbox = flowbox.borrow_mut();
-        for path in batch {
-            let image = Image::from_file(&path);
+    let flowbox_clone = Rc::clone(flowbox);
+    let image_loader_clone = Rc::clone(image_loader);
+
+    let (sender, receiver) = mpsc::channel::<(gdk::Texture, String)>();
+
+    std::thread::spawn(move || {
+        let num_cores = num_cpus::get();
+        batch
+            .par_iter()
+            .with_max_len(num_cores)
+            .for_each_with(sender.clone(), |s, path| {
+                let texture = {
+                    let mut cache = cache.lock();
+                    if let Some(texture) = cache.get(path) {
+                        texture
+                    } else {
+                        let texture = gdk::Texture::from_file(&gio::File::for_path(path)).unwrap();
+                        cache.insert(path.to_path_buf(), texture.clone());
+                        texture
+                    }
+                };
+
+                let path_clone = path.to_str().unwrap_or("").to_string();
+                s.send((texture, path_clone))
+                    .expect("Failed to send texture");
+            });
+    });
+
+    glib::source::idle_add_local(move || match receiver.try_recv() {
+        Ok((texture, path_clone)) => {
+            let image = Image::from_paintable(Some(&texture));
             image.set_pixel_size(250);
 
             let button = Button::builder().child(&image).build();
 
-            let path_clone = path.to_str().unwrap_or("").to_string();
             button.connect_clicked(move |_| {
                 crate::set_wallpaper(&path_clone);
             });
 
-            flowbox.insert(&button, -1);
+            flowbox_clone.borrow().insert(&button, -1);
+            ControlFlow::Continue
         }
-    }
-
-    if has_more {
-        let flowbox_clone = Rc::clone(flowbox);
-        let image_loader_clone = Rc::clone(image_loader);
-        glib::idle_add_local(move || {
-            load_more_images(&flowbox_clone, &image_loader_clone);
-            glib::ControlFlow::Continue
-        });
-    }
+        Err(mpsc::TryRecvError::Empty) => {
+            if !has_more {
+                load_more_images(&flowbox_clone, &image_loader_clone);
+            }
+            ControlFlow::Continue
+        }
+        Err(mpsc::TryRecvError::Disconnected) => ControlFlow::Break,
+    });
 }
 
 fn load_last_path() -> Option<PathBuf> {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
-    if let Ok(mut file) = fs::File::open(config_path) {
+    fs::File::open(config_path).ok().and_then(|mut file| {
         let mut contents = String::new();
-        if file.read_to_string(&mut contents).is_ok() {
-            for line in contents.lines() {
-                if line.starts_with("folder = ") {
-                    let path = line.trim_start_matches("folder = ");
-                    return Some(PathBuf::from(shellexpand::tilde(path).into_owned()));
-                }
-            }
-        }
-    }
-    None
+        file.read_to_string(&mut contents).ok()?;
+        contents
+            .lines()
+            .find(|line| line.starts_with("folder = "))
+            .map(|line| {
+                PathBuf::from(shellexpand::tilde(line.trim_start_matches("folder = ")).into_owned())
+            })
+    })
 }
 
 fn save_last_path(path: &Path) {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
     if let Some(parent) = PathBuf::from(&config_path).parent() {
-        fs::create_dir_all(parent).ok();
+        let _ = fs::create_dir_all(parent);
     }
     let content = format!("[Settings]\nfolder = {}", path.to_str().unwrap_or(""));
-    fs::write(config_path, content).ok();
+    let _ = fs::write(config_path, content);
 }
