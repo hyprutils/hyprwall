@@ -5,9 +5,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 
@@ -60,11 +59,11 @@ pub fn build_ui(app: &Application) {
     scrolled_window.set_child(Some(&flowbox));
 
     let flowbox_ref = Rc::new(RefCell::new(flowbox));
-    let cache = Arc::new(Mutex::new(ImageCache::new()));
+    let cache = Rc::new(RefCell::new(ImageCache::new()));
 
     let choose_folder_button = Button::with_label("Change wallpaper folder");
     let flowbox_clone = Rc::clone(&flowbox_ref);
-    let cache_clone = Arc::clone(&cache);
+    let cache_clone = Rc::clone(&cache);
     let window_weak = window.downgrade();
     choose_folder_button.connect_clicked(move |_| {
         if let Some(window) = window_weak.upgrade() {
@@ -79,11 +78,11 @@ pub fn build_ui(app: &Application) {
     window.set_child(Some(&main_box));
 
     let flowbox_clone = Rc::clone(&flowbox_ref);
-    let cache_clone = Arc::clone(&cache);
+    let cache_clone = Rc::clone(&cache);
     window.connect_show(move |_| {
         if let Some(last_path) = load_last_path() {
             let flowbox_clone2 = Rc::clone(&flowbox_clone);
-            let cache_clone2 = Arc::clone(&cache_clone);
+            let cache_clone2 = Rc::clone(&cache_clone);
             glib::idle_add_local(move || {
                 load_images(&last_path, &flowbox_clone2, &cache_clone2);
                 glib::ControlFlow::Continue
@@ -97,7 +96,7 @@ pub fn build_ui(app: &Application) {
 fn choose_folder(
     window: &ApplicationWindow,
     flowbox: &Rc<RefCell<FlowBox>>,
-    cache: &Arc<Mutex<ImageCache>>,
+    cache: &Rc<RefCell<ImageCache>>,
 ) {
     let dialog = gtk::FileChooserDialog::new(
         Some("Change wallpaper folder"),
@@ -114,7 +113,7 @@ fn choose_folder(
     }
 
     let flowbox_clone = Rc::clone(flowbox);
-    let cache_clone = Arc::clone(cache);
+    let cache_clone = Rc::clone(cache);
     dialog.connect_response(move |dialog, response| {
         if response == gtk::ResponseType::Accept {
             if let Some(folder) = dialog.file().and_then(|f| f.path()) {
@@ -128,13 +127,13 @@ fn choose_folder(
     dialog.show();
 }
 
-fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>, cache: &Arc<Mutex<ImageCache>>) {
+fn load_images(folder: &Path, flowbox: &Rc<RefCell<FlowBox>>, cache: &Rc<RefCell<ImageCache>>) {
     let flowbox = flowbox.borrow_mut();
     while let Some(child) = flowbox.first_child() {
         flowbox.remove(&child);
     }
 
-    let mut cache = cache.lock().unwrap();
+    let mut cache = cache.borrow_mut();
 
     if let Ok(entries) = fs::read_dir(folder) {
         for entry in entries.filter_map(Result::ok) {
@@ -186,7 +185,7 @@ fn load_last_path() -> Option<PathBuf> {
     None
 }
 
-fn save_last_path(path: &PathBuf) {
+fn save_last_path(path: &Path) {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
     if let Some(parent) = PathBuf::from(&config_path).parent() {
         fs::create_dir_all(parent).ok();
