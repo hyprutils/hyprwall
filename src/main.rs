@@ -29,7 +29,16 @@ fn main() {
     app.run();
 }
 
-pub fn set_wallpaper(path: &str) -> Result<(), String> {
+pub fn set_wallpaper(path: String) {
+    glib::spawn_future_local(async move {
+        match set_wallpaper_internal(&path).await {
+            Ok(_) => println!("Wallpaper set successfully"),
+            Err(e) => eprintln!("Error setting wallpaper: {}", e),
+        }
+    });
+}
+
+async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
     ensure_backend_running()?;
 
     println!("Attempting to set wallpaper: {}", path);

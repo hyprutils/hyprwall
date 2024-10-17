@@ -338,9 +338,8 @@ fn load_images(
                         .unwrap_or("Unknown");
                     button.set_tooltip_text(Some(file_name));
 
-                    button.connect_clicked(move |_| match crate::set_wallpaper(&path_clone) {
-                        Ok(_) => println!("Wallpaper set successfully"),
-                        Err(e) => eprintln!("Error setting wallpaper: {}", e),
+                    button.connect_clicked(move |_| {
+                        crate::set_wallpaper(path_clone.clone());
                     });
 
                     flowbox.insert(&button, -1);
@@ -405,10 +404,7 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
 
             if let Some(random_image) = images.choose(&mut rand::thread_rng()) {
                 if let Some(path_str) = random_image.to_str() {
-                    match crate::set_wallpaper(path_str) {
-                        Ok(_) => println!("Wallpaper set successfully"),
-                        Err(e) => eprintln!("Error setting wallpaper: {}", e),
-                    }
+                    crate::set_wallpaper(path_str.to_string());
                 }
             }
         }
