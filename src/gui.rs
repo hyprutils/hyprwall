@@ -237,7 +237,7 @@ fn load_images(
     image_loader: &Rc<RefCell<ImageLoader>>,
 ) {
     let mut image_loader = image_loader.borrow_mut();
-    
+
     if let Some(flag) = &image_loader.cancel_flag {
         flag.store(true, Ordering::Relaxed);
     }
