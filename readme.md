@@ -17,6 +17,7 @@ An unofficial GUI for setting wallpapers with Hyprpaper, built with GTK4 and Rus
 ## Requirements
 - Hyprland with IPC enabled
 - Hyprpaper installed
+- GTK-4 installed
 
 ## Installation
 
