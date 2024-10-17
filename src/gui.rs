@@ -152,6 +152,7 @@ pub fn build_ui(app: &Application) {
     bottom_box.set_margin_top(10);
     bottom_box.set_margin_bottom(10);
     bottom_box.set_halign(gtk::Align::Center);
+    bottom_box.append(&choose_folder_button);
     bottom_box.append(&random_button);
     bottom_box.append(&exit_button);
 
