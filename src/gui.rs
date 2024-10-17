@@ -1,4 +1,4 @@
-use crossbeam_channel::unbounded;
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use glib::ControlFlow;
 use gtk::gdk::Texture;
 use gtk::gdk_pixbuf::Pixbuf;
@@ -237,6 +237,11 @@ fn load_images(
     image_loader: &Rc<RefCell<ImageLoader>>,
 ) {
     let mut image_loader = image_loader.borrow_mut();
+    
+    if let Some(flag) = &image_loader.cancel_flag {
+        flag.store(true, Ordering::Relaxed);
+    }
+
     image_loader.load_folder(folder);
 
     let batch = image_loader.queue.drain(..).collect::<Vec<_>>();
@@ -251,6 +256,7 @@ fn load_images(
 
     let cancel_flag = Arc::new(AtomicBool::new(false));
     let cancel_flag_clone = Arc::clone(&cancel_flag);
+    let cancel_flag_clone2 = Arc::clone(&cancel_flag);
 
     std::thread::spawn(move || {
         let num_cores = num_cpus::get();
@@ -274,18 +280,17 @@ fn load_images(
 
                 let path_clone = path.to_str().unwrap_or("").to_string();
                 if s.send((texture, path_clone)).is_err() {
-                    eprintln!("Failed to send texture: receiver disconnected");
+                    cancel_flag_clone.store(true, Ordering::Relaxed);
                 }
             });
     });
 
-    let cancel_flag_clone2 = Arc::clone(&cancel_flag);
     glib::source::idle_add_local(move || {
         if cancel_flag_clone2.load(Ordering::Relaxed) {
             return ControlFlow::Break;
         }
 
-        let flowbox = flowbox_clone.borrow_mut();
+        let mut flowbox = flowbox_clone.borrow_mut();
         for _ in 0..10 {
             match receiver.try_recv() {
                 Ok((texture, path_clone)) => {
@@ -317,7 +322,10 @@ fn load_images(
                     flowbox.insert(&button, -1);
                 }
                 Err(crossbeam_channel::TryRecvError::Empty) => break,
-                Err(crossbeam_channel::TryRecvError::Disconnected) => return ControlFlow::Break,
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    cancel_flag_clone2.store(true, Ordering::Relaxed);
+                    return ControlFlow::Break;
+                }
             }
         }
         ControlFlow::Continue
