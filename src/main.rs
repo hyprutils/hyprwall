@@ -3,7 +3,7 @@ mod gui;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use std::{process::Command, sync::Once};
+use std::{process::Command, sync::Once, process::Stdio};
 
 lazy_static! {
     static ref MONITORS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -21,6 +21,8 @@ fn main() {
 }
 
 pub fn set_wallpaper(path: &str) -> Result<(), String> {
+    ensure_hyprpaper_running()?;
+
     println!("Attempting to set wallpaper: {}", path);
 
     INIT.call_once(|| match get_monitors() {
@@ -92,4 +94,38 @@ fn get_monitors() -> Result<Vec<String>, String> {
 
     println!("Retrieved monitors: {:?}", monitors);
     Ok(monitors)
+}
+
+fn ensure_hyprpaper_running() -> Result<(), String> {
+    if !is_hyprpaper_running() {
+        println!("hyprpaper is not running. Attempting to start it...");
+        start_hyprpaper()?;
+    }
+    Ok(())
+}
+
+fn is_hyprpaper_running() -> bool {
+    Command::new("pgrep")
+        .arg("-x")
+        .arg("hyprpaper")
+        .stdout(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn start_hyprpaper() -> Result<(), String> {
+    Command::new("hyprpaper")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to start hyprpaper: {}", e))?;
+
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    if is_hyprpaper_running() {
+        Ok(())
+    } else {
+        Err("Failed to start hyprpaper".to_string())
+    }
 }
