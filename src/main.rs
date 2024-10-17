@@ -1,10 +1,10 @@
 mod gui;
 
 use gtk::{prelude::*, Application};
-use std::process::Command;
-use std::sync::Once;
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use std::process::Command;
+use std::sync::Once;
 
 lazy_static! {
     static ref MONITORS: Mutex<Vec<String>> = Mutex::new(Vec::new());

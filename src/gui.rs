@@ -1,11 +1,13 @@
-use gtk::{prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow, gio};
+use gtk::{
+    gio, prelude::*, Application, ApplicationWindow, Button, FlowBox, Image, ScrolledWindow,
+};
+use shellexpand;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 use std::rc::Rc;
-use shellexpand;
-use std::io::Read;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
@@ -84,7 +86,11 @@ pub fn build_ui(app: &Application) {
     window.present();
 }
 
-fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>, cache: &Arc<Mutex<ImageCache>>) {
+fn choose_folder(
+    window: &ApplicationWindow,
+    flowbox: &Rc<RefCell<FlowBox>>,
+    cache: &Arc<Mutex<ImageCache>>,
+) {
     let dialog = gtk::FileChooserDialog::new(
         Some("Change wallpaper folder"),
         Some(window),
@@ -127,7 +133,10 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>, cache: &Arc<Mut
             if let Ok(file_type) = entry.file_type() {
                 if file_type.is_file() {
                     if let Some(path) = entry.path().to_str() {
-                        if path.ends_with(".png") || path.ends_with(".jpg") || path.ends_with(".jpeg") {
+                        if path.ends_with(".png")
+                            || path.ends_with(".jpg")
+                            || path.ends_with(".jpeg")
+                        {
                             let image = if let Some(cached_image) = cache.get(path) {
                                 cached_image
                             } else {
