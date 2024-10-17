@@ -1,3 +1,4 @@
+use crossbeam_channel::unbounded;
 use glib::ControlFlow;
 use gtk::gdk::Texture;
 use gtk::gdk_pixbuf::Pixbuf;
@@ -15,8 +16,8 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{mpsc, Arc},
     sync::atomic::{AtomicBool, Ordering},
+    sync::Arc,
 };
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
@@ -242,7 +243,7 @@ fn load_images(
     let cache = Arc::clone(&image_loader.cache);
 
     let flowbox_clone = Rc::clone(flowbox);
-    let (sender, receiver) = mpsc::channel::<(Texture, String)>();
+    let (sender, receiver) = unbounded::<(Texture, String)>();
 
     while let Some(child) = flowbox.borrow().first_child() {
         flowbox.borrow().remove(&child);
@@ -272,8 +273,9 @@ fn load_images(
                 };
 
                 let path_clone = path.to_str().unwrap_or("").to_string();
-                s.send((texture, path_clone))
-                    .expect("Failed to send texture");
+                if s.send((texture, path_clone)).is_err() {
+                    eprintln!("Failed to send texture: receiver disconnected");
+                }
             });
     });
 
@@ -314,8 +316,8 @@ fn load_images(
 
                     flowbox.insert(&button, -1);
                 }
-                Err(mpsc::TryRecvError::Empty) => break,
-                Err(mpsc::TryRecvError::Disconnected) => return ControlFlow::Break,
+                Err(crossbeam_channel::TryRecvError::Empty) => break,
+                Err(crossbeam_channel::TryRecvError::Disconnected) => return ControlFlow::Break,
             }
         }
         ControlFlow::Continue
