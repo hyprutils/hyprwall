@@ -102,7 +102,7 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
                     if let Some(path) = entry.path().to_str() {
                         if path.ends_with(".png") || path.ends_with(".jpg") || path.ends_with(".jpeg") {
                             let image = Image::from_file(path);
-                            image.set_pixel_size(150);
+                            image.set_pixel_size(250);
 
                             let button = Button::builder().child(&image).build();
 
