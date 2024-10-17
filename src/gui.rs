@@ -16,6 +16,7 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::{mpsc, Arc},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
@@ -70,6 +71,7 @@ struct ImageLoader {
     queue: VecDeque<PathBuf>,
     current_folder: Option<PathBuf>,
     cache: Arc<Mutex<ImageCache>>,
+    cancel_flag: Option<Arc<AtomicBool>>,
 }
 
 impl ImageLoader {
@@ -78,10 +80,15 @@ impl ImageLoader {
             queue: VecDeque::new(),
             current_folder: None,
             cache: Arc::new(Mutex::new(ImageCache::new())),
+            cancel_flag: None,
         }
     }
 
     fn load_folder(&mut self, folder: &Path) {
+        if let Some(flag) = &self.cancel_flag {
+            flag.store(true, Ordering::Relaxed);
+        }
+
         self.queue.clear();
         self.current_folder = Some(folder.to_path_buf());
         if let Ok(entries) = fs::read_dir(folder) {
@@ -241,12 +248,18 @@ fn load_images(
         flowbox.borrow().remove(&child);
     }
 
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    let cancel_flag_clone = Arc::clone(&cancel_flag);
+
     std::thread::spawn(move || {
         let num_cores = num_cpus::get();
         batch
             .par_iter()
             .with_max_len(num_cores)
             .for_each_with(sender.clone(), |s, path| {
+                if cancel_flag_clone.load(Ordering::Relaxed) {
+                    return;
+                }
                 let texture = {
                     let mut cache = cache.lock();
                     match cache.get_or_insert(path, 250) {
@@ -264,7 +277,12 @@ fn load_images(
             });
     });
 
+    let cancel_flag_clone2 = Arc::clone(&cancel_flag);
     glib::source::idle_add_local(move || {
+        if cancel_flag_clone2.load(Ordering::Relaxed) {
+            return ControlFlow::Break;
+        }
+
         let flowbox = flowbox_clone.borrow_mut();
         for _ in 0..10 {
             match receiver.try_recv() {
@@ -302,6 +320,8 @@ fn load_images(
         }
         ControlFlow::Continue
     });
+
+    image_loader.cancel_flag = Some(cancel_flag);
 }
 
 fn load_last_path() -> Option<PathBuf> {
