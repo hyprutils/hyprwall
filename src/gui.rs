@@ -5,8 +5,30 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use shellexpand;
 use std::io::Read;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
+
+struct ImageCache {
+    cache: HashMap<String, gtk::Image>,
+}
+
+impl ImageCache {
+    fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    fn get(&self, path: &str) -> Option<gtk::Image> {
+        self.cache.get(path).cloned()
+    }
+
+    fn insert(&mut self, path: String, image: gtk::Image) {
+        self.cache.insert(path, image);
+    }
+}
 
 pub fn build_ui(app: &Application) {
     let window = ApplicationWindow::builder()
@@ -37,13 +59,15 @@ pub fn build_ui(app: &Application) {
     scrolled_window.set_child(Some(&flowbox));
 
     let flowbox_ref = Rc::new(RefCell::new(flowbox));
+    let cache = Arc::new(Mutex::new(ImageCache::new()));
 
     let choose_folder_button = Button::with_label("Change wallpaper folder");
     let flowbox_clone = Rc::clone(&flowbox_ref);
+    let cache_clone = Arc::clone(&cache);
     let window_weak = window.downgrade();
     choose_folder_button.connect_clicked(move |_| {
         if let Some(window) = window_weak.upgrade() {
-            choose_folder(&window, &flowbox_clone);
+            choose_folder(&window, &flowbox_clone, &cache_clone);
         }
     });
 
@@ -54,13 +78,13 @@ pub fn build_ui(app: &Application) {
     window.set_child(Some(&main_box));
 
     if let Some(last_path) = load_last_path() {
-        load_images(&last_path, &flowbox_ref);
+        load_images(&last_path, &flowbox_ref, &cache);
     }
 
     window.present();
 }
 
-fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>) {
+fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>, cache: &Arc<Mutex<ImageCache>>) {
     let dialog = gtk::FileChooserDialog::new(
         Some("Change wallpaper folder"),
         Some(window),
@@ -76,10 +100,11 @@ fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>) {
     }
 
     let flowbox_clone = Rc::clone(flowbox);
+    let cache_clone = Arc::clone(cache);
     dialog.connect_response(move |dialog, response| {
         if response == gtk::ResponseType::Accept {
             if let Some(folder) = dialog.file().and_then(|f| f.path()) {
-                load_images(&folder, &flowbox_clone);
+                load_images(&folder, &flowbox_clone, &cache_clone);
                 save_last_path(&folder);
             }
         }
@@ -89,11 +114,13 @@ fn choose_folder(window: &ApplicationWindow, flowbox: &Rc<RefCell<FlowBox>>) {
     dialog.show();
 }
 
-fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
-    let flowbox = flowbox.borrow_mut();
+fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>, cache: &Arc<Mutex<ImageCache>>) {
+    let mut flowbox = flowbox.borrow_mut();
     while let Some(child) = flowbox.first_child() {
         flowbox.remove(&child);
     }
+
+    let mut cache = cache.lock().unwrap();
 
     if let Ok(entries) = fs::read_dir(folder) {
         for entry in entries.filter_map(Result::ok) {
@@ -101,8 +128,14 @@ fn load_images(folder: &PathBuf, flowbox: &Rc<RefCell<FlowBox>>) {
                 if file_type.is_file() {
                     if let Some(path) = entry.path().to_str() {
                         if path.ends_with(".png") || path.ends_with(".jpg") || path.ends_with(".jpeg") {
-                            let image = Image::from_file(path);
-                            image.set_pixel_size(250);
+                            let image = if let Some(cached_image) = cache.get(path) {
+                                cached_image
+                            } else {
+                                let new_image = Image::from_file(path);
+                                new_image.set_pixel_size(250);
+                                cache.insert(path.to_string(), new_image.clone());
+                                new_image
+                            };
 
                             let button = Button::builder().child(&image).build();
 
