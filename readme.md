@@ -1,6 +1,6 @@
 <div align='center'>
 
-## Hyprwall 🦀
+## Hyprwall 🚀🦀
 An unofficial GUI for setting wallpapers with Hyprpaper, built with GTK4 and Rust. 🚀🦀<br>
 
 ![Preview](.github/preview.png)
