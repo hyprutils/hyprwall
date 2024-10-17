@@ -29,7 +29,8 @@ rand = "0.8"
 crossbeam-channel = "0.5"
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+opt-level = 3
