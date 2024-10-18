@@ -3,15 +3,16 @@ mod gui;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use std::{process::Command, process::Stdio, sync::Once};
+use std::process::Stdio;
+use tokio::process::Command as TokioCommand;
+use tokio::runtime::Runtime;
 
 lazy_static! {
     static ref MONITORS: Mutex<Vec<String>> = Mutex::new(Vec::new());
     static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::Hyprpaper);
 }
 
-static INIT: Once = Once::new();
-
+#[derive(Clone, Copy)]
 pub enum WallpaperBackend {
     Hyprpaper,
     Swaybg,
@@ -21,6 +22,9 @@ pub enum WallpaperBackend {
 }
 
 fn main() {
+    let rt = Runtime::new().expect("Failed to create Tokio runtime");
+    let _guard = rt.enter();
+
     let app = Application::builder()
         .application_id("nnyyxxxx.hyprwall")
         .build();
@@ -34,7 +38,7 @@ pub fn set_wallpaper(path: String) {
         match set_wallpaper_internal(&path).await {
             Ok(_) => println!("Wallpaper set successfully"),
             Err(e) => {
-                gui::custom_error_popup("Error setting wallpaper", e.as_str(), true);
+                gui::custom_error_popup("Error setting wallpaper", &e, true);
                 eprintln!("Error setting wallpaper: {}", e);
             }
         }
@@ -42,118 +46,78 @@ pub fn set_wallpaper(path: String) {
 }
 
 async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
-    ensure_backend_running()?;
+    ensure_backend_running().await?;
 
     println!("Attempting to set wallpaper: {}", path);
 
-    INIT.call_once(|| match get_monitors() {
-        Ok(monitors) => *MONITORS.lock() = monitors,
-        Err(e) => eprintln!("Failed to get monitors: {}", e),
-    });
-
-    println!("Found monitors: {:?}", *MONITORS.lock());
-
-    match *CURRENT_BACKEND.lock() {
-        WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path),
-        WallpaperBackend::Swaybg => set_swaybg_wallpaper(path),
-        WallpaperBackend::Swww => set_swww_wallpaper(path),
-        WallpaperBackend::Wallutils => set_wallutils_wallpaper(path),
-        WallpaperBackend::Feh => set_feh_wallpaper(path),
+    let backend = *CURRENT_BACKEND.lock();
+    match backend {
+        WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
+        WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
+        WallpaperBackend::Swww => set_swww_wallpaper(path).await,
+        WallpaperBackend::Wallutils => set_wallutils_wallpaper(path).await,
+        WallpaperBackend::Feh => set_feh_wallpaper(path).await,
     }
 }
 
-fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
+async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
     let preload_command = format!("hyprctl hyprpaper preload \"{}\"", path);
-    if !execute_command(&preload_command) {
-        return Err("Failed to preload wallpaper".to_string());
+    spawn_background_process(&preload_command).await?;
+
+    let monitors = get_monitors().await?;
+
+    if monitors.is_empty() {
+        return Err("No monitors detected".to_string());
     }
 
-    for monitor in MONITORS.lock().iter() {
+    *MONITORS.lock() = monitors.clone();
+
+    for monitor in monitors {
         let set_command = format!("hyprctl hyprpaper wallpaper \"{},{}\"", monitor, path);
-        if !execute_command(&set_command) {
-            return Err(format!("Failed to set wallpaper for {}", monitor));
-        }
+        spawn_background_process(&set_command).await?;
     }
 
     Ok(())
 }
 
-fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
-    Command::new("swaybg")
-        .arg("-i")
-        .arg(path)
-        .arg("-m")
-        .arg("fill")
+async fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
+    let command = format!("swaybg -i \"{}\" -m fill", path);
+    spawn_background_process(&command).await
+}
+
+async fn set_swww_wallpaper(path: &str) -> Result<(), String> {
+    let command = format!("swww img \"{}\" 2>/dev/null", path);
+    spawn_background_process(&command).await
+}
+
+async fn set_wallutils_wallpaper(path: &str) -> Result<(), String> {
+    let command = format!("setwallpaper \"{}\"", path);
+    spawn_background_process(&command).await
+}
+
+async fn set_feh_wallpaper(path: &str) -> Result<(), String> {
+    let command = format!("feh --bg-fill \"{}\"", path);
+    spawn_background_process(&command).await
+}
+
+async fn spawn_background_process(command: &str) -> Result<(), String> {
+    TokioCommand::new("sh")
+        .arg("-c")
+        .arg(command)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("Failed to start swaybg: {}", e))?;
+        .map_err(|e| format!("Failed to execute command '{}': {}", command, e))?;
 
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    if is_process_running("swaybg") {
-        Ok(())
-    } else {
-        Err("swaybg failed to start or crashed immediately".to_string())
-    }
-}
-
-fn set_swww_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("swww img \"{}\"", path);
-    if !execute_command(&set_command) {
-        return Err("Failed to set wallpaper with swww".to_string());
-    }
     Ok(())
 }
 
-fn set_wallutils_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("setwallpaper \"{}\"", path);
-    if !execute_command(&set_command) {
-        return Err("Failed to set wallpaper with wallutils".to_string());
-    }
-    Ok(())
-}
-
-fn set_feh_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("feh --bg-fill \"{}\"", path);
-    if !execute_command(&set_command) {
-        return Err("Failed to set wallpaper with feh".to_string());
-    }
-    Ok(())
-}
-
-fn execute_command(command: &str) -> bool {
-    match Command::new("sh")
-        .arg("-c")
-        .arg(command)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-    {
-        Ok(output) => {
-            if output.status.success() {
-                true
-            } else {
-                eprintln!(
-                    "Command failed: {}\nStderr: {}\nStdout: {}",
-                    command,
-                    String::from_utf8_lossy(&output.stderr).trim(),
-                    String::from_utf8_lossy(&output.stdout).trim()
-                );
-                false
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to execute command: {}. Error: {}", command, e);
-            false
-        }
-    }
-}
-
-fn get_monitors() -> Result<Vec<String>, String> {
+async fn get_monitors() -> Result<Vec<String>, String> {
     println!("Retrieving monitor information");
-    let output = Command::new("hyprctl")
+    let output = TokioCommand::new("hyprctl")
         .arg("monitors")
         .output()
+        .await
         .map_err(|e| format!("Failed to execute hyprctl monitors: {}", e))?;
 
     let monitors: Vec<String> = String::from_utf8_lossy(&output.stdout)
@@ -173,62 +137,61 @@ fn get_monitors() -> Result<Vec<String>, String> {
     Ok(monitors)
 }
 
-fn ensure_backend_running() -> Result<(), String> {
-    match *CURRENT_BACKEND.lock() {
-        WallpaperBackend::Hyprpaper => ensure_hyprpaper_running(),
-        WallpaperBackend::Swaybg => ensure_swaybg_running(),
-        WallpaperBackend::Swww => ensure_swww_running(),
+async fn ensure_backend_running() -> Result<(), String> {
+    let backend = *CURRENT_BACKEND.lock();
+    match backend {
+        WallpaperBackend::Hyprpaper => ensure_hyprpaper_running().await,
+        WallpaperBackend::Swaybg => ensure_swaybg_running().await,
+        WallpaperBackend::Swww => ensure_swww_running().await,
         WallpaperBackend::Wallutils => Ok(()),
         WallpaperBackend::Feh => Ok(()),
     }
 }
 
-fn ensure_hyprpaper_running() -> Result<(), String> {
-    if !is_process_running("hyprpaper") {
+async fn ensure_hyprpaper_running() -> Result<(), String> {
+    if !is_process_running("hyprpaper").await {
         println!("hyprpaper is not running. Attempting to start it...");
-        start_process("hyprpaper")?;
+        start_process("hyprpaper").await?;
     }
     Ok(())
 }
 
-fn ensure_swaybg_running() -> Result<(), String> {
-    if !is_process_running("swaybg") {
+async fn ensure_swaybg_running() -> Result<(), String> {
+    if !is_process_running("swaybg").await {
         println!("swaybg is not running. Attempting to start it...");
-        start_process("swaybg")?;
+        start_process("swaybg").await?;
     }
     Ok(())
 }
 
-fn ensure_swww_running() -> Result<(), String> {
-    if !is_process_running("swww") {
+async fn ensure_swww_running() -> Result<(), String> {
+    if !is_process_running("swww-daemon").await {
         println!("swww is not running. Attempting to start it...");
-        start_process("swww init")?;
+        start_process("swww-daemon 2>/dev/null").await?;
     }
     Ok(())
 }
 
-fn is_process_running(process_name: &str) -> bool {
-    Command::new("pgrep")
+async fn is_process_running(process_name: &str) -> bool {
+    TokioCommand::new("pgrep")
         .arg("-x")
         .arg(process_name)
-        .stdout(Stdio::null())
         .status()
+        .await
         .map(|status| status.success())
         .unwrap_or(false)
 }
 
-fn start_process(command: &str) -> Result<(), String> {
-    Command::new("sh")
+async fn start_process(command: &str) -> Result<(), String> {
+    TokioCommand::new("sh")
         .arg("-c")
         .arg(command)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
         .spawn()
         .map_err(|e| format!("Failed to start {}: {}", command, e))?;
 
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-    if is_process_running(command.split_whitespace().next().unwrap_or(command)) {
+    if is_process_running(command.split_whitespace().next().unwrap_or(command)).await {
         Ok(())
     } else {
         Err(format!("Failed to start {}", command))
@@ -236,5 +199,44 @@ fn start_process(command: &str) -> Result<(), String> {
 }
 
 pub fn set_wallpaper_backend(backend: WallpaperBackend) {
-    *CURRENT_BACKEND.lock() = backend;
+    let previous_backend = {
+        let mut current = CURRENT_BACKEND.lock();
+        let prev = *current;
+        *current = backend;
+        prev
+    };
+    tokio::spawn(async move {
+        drop_all_wallpapers(previous_backend).await;
+        kill_previous_backend(previous_backend).await;
+    });
+}
+
+async fn kill_previous_backend(backend: WallpaperBackend) {
+    let process_name = match backend {
+        WallpaperBackend::Hyprpaper => "hyprpaper",
+        WallpaperBackend::Swaybg => "swaybg",
+        WallpaperBackend::Swww => "swww-daemon",
+        WallpaperBackend::Wallutils => return,
+        WallpaperBackend::Feh => return,
+    };
+
+    let _ = TokioCommand::new("killall")
+        .arg(process_name)
+        .status()
+        .await;
+}
+
+async fn drop_all_wallpapers(backend: WallpaperBackend) {
+    match backend {
+        WallpaperBackend::Hyprpaper => {
+            let _ = TokioCommand::new("hyprctl")
+                .args(["hyprpaper", "unload", "all"])
+                .status()
+                .await;
+        }
+        WallpaperBackend::Swww => {
+            let _ = TokioCommand::new("swww").args(["clear"]).status().await;
+        }
+        _ => {}
+    }
 }

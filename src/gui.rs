@@ -342,8 +342,9 @@ fn load_images(
                         .unwrap_or("Unknown");
                     button.set_tooltip_text(Some(file_name));
 
+                    let path_clone2 = path_clone.clone();
                     button.connect_clicked(move |_| {
-                        crate::set_wallpaper(path_clone.clone());
+                        crate::set_wallpaper(path_clone2.clone());
                     });
 
                     flowbox.insert(&button, -1);
