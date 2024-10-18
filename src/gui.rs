@@ -415,23 +415,6 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
     }
 }
 
-#[allow(dead_code)]
-pub fn custom_info_popup(title: &str, text: &str, modal: bool) {
-    let dialog = MessageDialog::builder()
-        .message_type(gtk::MessageType::Info)
-        .buttons(gtk::ButtonsType::Ok)
-        .title(title)
-        .text(text)
-        .modal(modal)
-        .build();
-
-    dialog.connect_response(|dialog, _| {
-        dialog.close();
-    });
-
-    dialog.show();
-}
-
 pub fn custom_error_popup(title: &str, text: &str, modal: bool) {
     let dialog = MessageDialog::builder()
         .message_type(gtk::MessageType::Error)
@@ -443,23 +426,6 @@ pub fn custom_error_popup(title: &str, text: &str, modal: bool) {
 
     dialog.connect_response(|dialog, _| {
         dialog.close();
-    });
-
-    dialog.show();
-}
-
-#[allow(dead_code)]
-pub fn custom_error_popup_critical(title: &str, text: &str, modal: bool) {
-    let dialog = MessageDialog::builder()
-        .message_type(gtk::MessageType::Error)
-        .buttons(gtk::ButtonsType::Ok)
-        .title(title)
-        .text(text)
-        .modal(modal)
-        .build();
-
-    dialog.connect_response(|_, _| {
-        std::process::exit(1);
     });
 
     dialog.show();
