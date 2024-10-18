@@ -64,7 +64,8 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
 
     println!("Found monitors: {:?}", *MONITORS.lock());
 
-    match *CURRENT_BACKEND.lock() {
+    let backend = *CURRENT_BACKEND.lock();
+    match backend {
         WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
         WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
         WallpaperBackend::Swww => set_swww_wallpaper(path).await,
@@ -77,7 +78,8 @@ async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
     let preload_command = format!("hyprctl hyprpaper preload \"{}\"", path);
     spawn_background_process(&preload_command).await?;
 
-    for monitor in MONITORS.lock().iter() {
+    let monitors = MONITORS.lock().clone();
+    for monitor in monitors.iter() {
         let set_command = format!("hyprctl hyprpaper wallpaper \"{},{}\"", monitor, path);
         spawn_background_process(&set_command).await?;
     }
@@ -143,7 +145,8 @@ async fn get_monitors() -> Result<Vec<String>, String> {
 }
 
 async fn ensure_backend_running() -> Result<(), String> {
-    match *CURRENT_BACKEND.lock() {
+    let backend = *CURRENT_BACKEND.lock();
+    match backend {
         WallpaperBackend::Hyprpaper => ensure_hyprpaper_running().await,
         WallpaperBackend::Swaybg => ensure_swaybg_running().await,
         WallpaperBackend::Swww => ensure_swww_running().await,
@@ -219,7 +222,7 @@ async fn kill_previous_backend(backend: WallpaperBackend) {
     let process_name = match backend {
         WallpaperBackend::Hyprpaper => "hyprpaper",
         WallpaperBackend::Swaybg => "swaybg",
-        WallpaperBackend::Swww => "swww",
+        WallpaperBackend::Swww => "swww-daemon",
         WallpaperBackend::Wallutils => return,
         WallpaperBackend::Feh => return,
     };
@@ -234,12 +237,12 @@ async fn drop_all_wallpapers(backend: WallpaperBackend) {
     match backend {
         WallpaperBackend::Hyprpaper => {
             let _ = TokioCommand::new("hyprctl")
-                .args(&["hyprpaper", "unload", "all"])
+                .args(["hyprpaper", "unload", "all"])
                 .status()
                 .await;
         }
         WallpaperBackend::Swww => {
-            let _ = TokioCommand::new("swww").args(&["clear"]).status().await;
+            let _ = TokioCommand::new("swww").args(["clear"]).status().await;
         }
         _ => {}
     }
