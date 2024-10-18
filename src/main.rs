@@ -3,6 +3,7 @@ mod gui;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use std::process::Stdio;
 use std::sync::Once;
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
@@ -74,86 +75,46 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
 
 async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
     let preload_command = format!("hyprctl hyprpaper preload \"{}\"", path);
-    if !execute_command(&preload_command).await {
-        return Err("Failed to preload wallpaper".to_string());
-    }
+    spawn_background_process(&preload_command).await?;
 
     for monitor in MONITORS.lock().iter() {
         let set_command = format!("hyprctl hyprpaper wallpaper \"{},{}\"", monitor, path);
-        if !execute_command(&set_command).await {
-            return Err(format!("Failed to set wallpaper for {}", monitor));
-        }
+        spawn_background_process(&set_command).await?;
     }
 
     Ok(())
 }
 
 async fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
-    let output = TokioCommand::new("swaybg")
-        .arg("-i")
-        .arg(path)
-        .arg("-m")
-        .arg("fill")
-        .output()
-        .await
-        .map_err(|e| format!("Failed to start swaybg: {}", e))?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err("swaybg failed to set wallpaper".to_string())
-    }
+    let command = format!("swaybg -i \"{}\" -m fill", path);
+    spawn_background_process(&command).await
 }
 
 async fn set_swww_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("swww img \"{}\"", path);
-    if !execute_command(&set_command).await {
-        return Err("Failed to set wallpaper with swww".to_string());
-    }
-    Ok(())
+    let command = format!("swww img \"{}\"", path);
+    spawn_background_process(&command).await
 }
 
 async fn set_wallutils_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("setwallpaper \"{}\"", path);
-    if !execute_command(&set_command).await {
-        return Err("Failed to set wallpaper with wallutils".to_string());
-    }
-    Ok(())
+    let command = format!("setwallpaper \"{}\"", path);
+    spawn_background_process(&command).await
 }
 
 async fn set_feh_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("feh --bg-fill \"{}\"", path);
-    if !execute_command(&set_command).await {
-        return Err("Failed to set wallpaper with feh".to_string());
-    }
-    Ok(())
+    let command = format!("feh --bg-fill \"{}\"", path);
+    spawn_background_process(&command).await
 }
 
-async fn execute_command(command: &str) -> bool {
-    match TokioCommand::new("sh")
+async fn spawn_background_process(command: &str) -> Result<(), String> {
+    TokioCommand::new("sh")
         .arg("-c")
         .arg(command)
-        .output()
-        .await
-    {
-        Ok(output) => {
-            if output.status.success() {
-                true
-            } else {
-                eprintln!(
-                    "Command failed: {}\nStderr: {}\nStdout: {}",
-                    command,
-                    String::from_utf8_lossy(&output.stderr).trim(),
-                    String::from_utf8_lossy(&output.stdout).trim()
-                );
-                false
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to execute command: {}. Error: {}", command, e);
-            false
-        }
-    }
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to execute command '{}': {}", command, e))?;
+
+    Ok(())
 }
 
 async fn get_monitors() -> Result<Vec<String>, String> {
