@@ -33,7 +33,10 @@ pub fn set_wallpaper(path: String) {
     glib::spawn_future_local(async move {
         match set_wallpaper_internal(&path).await {
             Ok(_) => println!("Wallpaper set successfully"),
-            Err(e) => eprintln!("Error setting wallpaper: {}", e),
+            Err(e) => {
+                gui::custom_error_popup("Error setting wallpaper", e.as_str(), true);
+                eprintln!("Error setting wallpaper: {}", e);
+            }
         }
     });
 }

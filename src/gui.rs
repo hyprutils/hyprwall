@@ -1,8 +1,12 @@
 use crossbeam_channel::unbounded;
 use glib::ControlFlow;
 use gtk::{
-    gdk, gdk::Texture, gdk_pixbuf::Pixbuf, gio, glib, prelude::*, Application, ApplicationWindow,
-    Box as GtkBox, Button, ComboBoxText, EventControllerMotion, FlowBox, Image, ScrolledWindow,
+    gdk::{self, Texture},
+    gdk_pixbuf::Pixbuf,
+    gio, glib,
+    prelude::*,
+    Application, ApplicationWindow, Box as GtkBox, Button, ComboBoxText, EventControllerMotion,
+    FlowBox, Image, MessageDialog, ScrolledWindow,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
@@ -409,4 +413,20 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
             }
         }
     }
+}
+
+pub fn custom_error_popup(title: &str, text: &str, modal: bool) {
+    let dialog = MessageDialog::builder()
+        .message_type(gtk::MessageType::Error)
+        .buttons(gtk::ButtonsType::Ok)
+        .title(title)
+        .text(text)
+        .modal(modal)
+        .build();
+
+    dialog.connect_response(|dialog, _| {
+        dialog.close();
+    });
+
+    dialog.show();
 }
