@@ -106,8 +106,19 @@ async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
 }
 
 async fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
-    let command = format!("swaybg -i \"{}\" -m fill", path);
-    spawn_background_process(&command).await
+    let command = format!("swaybg -i \"{}\" -m fill &", path);
+    TokioCommand::new("sh")
+        .arg("-c")
+        .arg(&command)
+        .spawn()
+        .map_err(|e| format!("Failed to start swaybg: {}", e))?;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    if is_process_running("swaybg").await {
+        Ok(())
+    } else {
+        Err("swaybg failed to start or crashed immediately".to_string())
+    }
 }
 
 async fn set_swww_wallpaper(path: &str) -> Result<(), String> {
