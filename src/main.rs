@@ -65,7 +65,7 @@ async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
     spawn_background_process(&preload_command).await?;
 
     let monitors = get_monitors().await?;
-    
+
     if monitors.is_empty() {
         return Err("No monitors detected".to_string());
     }
