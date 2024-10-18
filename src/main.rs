@@ -3,7 +3,6 @@ mod gui;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
-use std::process::Stdio;
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
 
@@ -38,8 +37,8 @@ pub fn set_wallpaper(path: String) {
         match set_wallpaper_internal(&path).await {
             Ok(_) => println!("Wallpaper set successfully"),
             Err(e) => {
-                gui::custom_error_popup("Error setting wallpaper", &e, true);
                 eprintln!("Error setting wallpaper: {}", e);
+                gui::custom_error_popup("Error setting wallpaper", &e, true);
             }
         }
     });
@@ -86,7 +85,7 @@ async fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
 }
 
 async fn set_swww_wallpaper(path: &str) -> Result<(), String> {
-    let command = format!("swww img \"{}\" 2>/dev/null", path);
+    let command = format!("swww img \"{}\"", path);
     spawn_background_process(&command).await
 }
 
@@ -101,13 +100,24 @@ async fn set_feh_wallpaper(path: &str) -> Result<(), String> {
 }
 
 async fn spawn_background_process(command: &str) -> Result<(), String> {
-    TokioCommand::new("sh")
+    let output = TokioCommand::new("sh")
         .arg("-c")
         .arg(command)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
+        .output()
+        .await
         .map_err(|e| format!("Failed to execute command '{}': {}", command, e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(format!(
+            "Command '{}' failed with exit code {:?}.\nStdout: {}\nStderr: {}",
+            command,
+            output.status.code(),
+            stdout,
+            stderr
+        ));
+    }
 
     Ok(())
 }
