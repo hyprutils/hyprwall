@@ -86,7 +86,7 @@ async fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
 }
 
 async fn set_swww_wallpaper(path: &str) -> Result<(), String> {
-    let command = format!("swww img \"{}\"", path);
+    let command = format!("swww img \"{}\" 2>/dev/null", path);
     spawn_background_process(&command).await
 }
 
@@ -167,7 +167,7 @@ async fn ensure_swaybg_running() -> Result<(), String> {
 async fn ensure_swww_running() -> Result<(), String> {
     if !is_process_running("swww-daemon").await {
         println!("swww is not running. Attempting to start it...");
-        start_process("swww-daemon").await?;
+        start_process("swww-daemon 2>/dev/null").await?;
     }
     Ok(())
 }
