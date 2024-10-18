@@ -4,7 +4,6 @@ use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use std::process::Stdio;
-use std::sync::Once;
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
 
@@ -12,8 +11,6 @@ lazy_static! {
     static ref MONITORS: Mutex<Vec<String>> = Mutex::new(Vec::new());
     static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::Hyprpaper);
 }
-
-static INIT: Once = Once::new();
 
 #[derive(Clone, Copy)]
 pub enum WallpaperBackend {
@@ -53,17 +50,6 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
 
     println!("Attempting to set wallpaper: {}", path);
 
-    INIT.call_once(|| {
-        tokio::spawn(async {
-            match get_monitors().await {
-                Ok(monitors) => *MONITORS.lock() = monitors,
-                Err(e) => eprintln!("Failed to get monitors: {}", e),
-            }
-        });
-    });
-
-    println!("Found monitors: {:?}", *MONITORS.lock());
-
     let backend = *CURRENT_BACKEND.lock();
     match backend {
         WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
@@ -78,8 +64,15 @@ async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
     let preload_command = format!("hyprctl hyprpaper preload \"{}\"", path);
     spawn_background_process(&preload_command).await?;
 
-    let monitors = MONITORS.lock().clone();
-    for monitor in monitors.iter() {
+    let monitors = get_monitors().await?;
+    
+    if monitors.is_empty() {
+        return Err("No monitors detected".to_string());
+    }
+
+    *MONITORS.lock() = monitors.clone();
+
+    for monitor in monitors {
         let set_command = format!("hyprctl hyprpaper wallpaper \"{},{}\"", monitor, path);
         spawn_background_process(&set_command).await?;
     }
