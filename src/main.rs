@@ -76,11 +76,22 @@ fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
 }
 
 fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
-    let set_command = format!("swaybg -i \"{}\" -m fill", path);
-    if !execute_command(&set_command) {
-        return Err("Failed to set wallpaper with swaybg".to_string());
+    let status = Command::new("swaybg")
+        .arg("-i")
+        .arg(path)
+        .arg("-m")
+        .arg("fill")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to start swaybg: {}", e))?;
+
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    if is_process_running("swaybg") {
+        Ok(())
+    } else {
+        Err("swaybg failed to start or crashed immediately".to_string())
     }
-    Ok(())
 }
 
 fn set_swww_wallpaper(path: &str) -> Result<(), String> {
@@ -108,14 +119,22 @@ fn set_feh_wallpaper(path: &str) -> Result<(), String> {
 }
 
 fn execute_command(command: &str) -> bool {
-    match Command::new("sh").arg("-c").arg(command).output() {
+    match Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+    {
         Ok(output) => {
             if output.status.success() {
                 true
             } else {
                 eprintln!(
-                    "Command failed: {}",
-                    String::from_utf8_lossy(&output.stderr).trim()
+                    "Command failed: {}\nStderr: {}\nStdout: {}",
+                    command,
+                    String::from_utf8_lossy(&output.stderr).trim(),
+                    String::from_utf8_lossy(&output.stdout).trim()
                 );
                 false
             }
