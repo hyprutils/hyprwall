@@ -1,6 +1,6 @@
 [package]
 name = "hyprwall"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Nyx <nnyyxxxx@protonmail.com>"]
 license = "GPL-2.0"
 description = "GUI for setting wallpapers with Hyprpaper, written in blazingly fast Rust!"
