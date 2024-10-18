@@ -169,7 +169,7 @@ async fn ensure_swaybg_running() -> Result<(), String> {
 }
 
 async fn ensure_swww_running() -> Result<(), String> {
-    if !is_process_running("swww").await {
+    if !is_process_running("swww-daemon").await {
         println!("swww is not running. Attempting to start it...");
         start_process("swww-daemon").await?;
     }
