@@ -24,7 +24,7 @@ pub enum WallpaperBackend {
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    #[arg(long, help = "Restore the last selected wallpaper")]
+    #[arg(short = 'r', long, help = "Restore the last selected wallpaper")]
     restore: bool,
 }
 
