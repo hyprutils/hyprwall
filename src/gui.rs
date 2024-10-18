@@ -2,7 +2,7 @@ use crossbeam_channel::unbounded;
 use glib::ControlFlow;
 use gtk::{
     gdk, gdk::Texture, gdk_pixbuf::Pixbuf, gio, glib, prelude::*, Application, ApplicationWindow,
-    Box as GtkBox, Button, EventControllerMotion, FlowBox, Image, ScrolledWindow,
+    Box as GtkBox, Button, ComboBoxText, EventControllerMotion, FlowBox, Image, ScrolledWindow,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
@@ -17,6 +17,8 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
     sync::Arc,
 };
+
+use crate::WallpaperBackend;
 
 const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 const CACHE_SIZE: usize = 100;
@@ -148,12 +150,35 @@ pub fn build_ui(app: &Application) {
     let random_button = Button::with_label("Random");
     let exit_button = Button::with_label("Exit");
 
+    let backend_combo = ComboBoxText::new();
+    backend_combo.append(Some("hyprpaper"), "Hyprpaper");
+    backend_combo.append(Some("swaybg"), "Swaybg");
+    backend_combo.append(Some("swww"), "Swww");
+    backend_combo.append(Some("wallutils"), "Wallutils");
+    backend_combo.append(Some("feh"), "Feh");
+    backend_combo.set_active_id(Some("hyprpaper"));
+
+    backend_combo.connect_changed(|combo| {
+        if let Some(active_id) = combo.active_id() {
+            let backend = match active_id.as_str() {
+                "hyprpaper" => WallpaperBackend::Hyprpaper,
+                "swaybg" => WallpaperBackend::Swaybg,
+                "swww" => WallpaperBackend::Swww,
+                "wallutils" => WallpaperBackend::Wallutils,
+                "feh" => WallpaperBackend::Feh,
+                _ => return,
+            };
+            crate::set_wallpaper_backend(backend);
+        }
+    });
+
     let bottom_box = GtkBox::new(gtk::Orientation::Horizontal, 10);
     bottom_box.set_margin_top(10);
     bottom_box.set_margin_bottom(10);
     bottom_box.set_halign(gtk::Align::Center);
     bottom_box.append(&choose_folder_button);
     bottom_box.append(&random_button);
+    bottom_box.append(&backend_combo);
     bottom_box.append(&exit_button);
 
     let main_box = GtkBox::new(gtk::Orientation::Vertical, 0);
@@ -313,9 +338,8 @@ fn load_images(
                         .unwrap_or("Unknown");
                     button.set_tooltip_text(Some(file_name));
 
-                    button.connect_clicked(move |_| match crate::set_wallpaper(&path_clone) {
-                        Ok(_) => println!("Wallpaper set successfully"),
-                        Err(e) => eprintln!("Error setting wallpaper: {}", e),
+                    button.connect_clicked(move |_| {
+                        crate::set_wallpaper(path_clone.clone());
                     });
 
                     flowbox.insert(&button, -1);
@@ -380,10 +404,7 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
 
             if let Some(random_image) = images.choose(&mut rand::thread_rng()) {
                 if let Some(path_str) = random_image.to_str() {
-                    match crate::set_wallpaper(path_str) {
-                        Ok(_) => println!("Wallpaper set successfully"),
-                        Err(e) => eprintln!("Error setting wallpaper: {}", e),
-                    }
+                    crate::set_wallpaper(path_str.to_string());
                 }
             }
         }
