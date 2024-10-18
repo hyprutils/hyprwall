@@ -27,6 +27,7 @@ rayon = "1.7"
 num_cpus = "1.15"
 rand = "0.8"
 crossbeam-channel = "0.5"
+tokio = { version = "1.28", features = ["full"] }
 
 [profile.release]
 lto = "fat"
