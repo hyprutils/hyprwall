@@ -31,6 +31,11 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
+    let rt = Runtime::new().expect("Failed to create Tokio runtime");
+    let _guard = rt.enter();
+
+    load_wallpaper_backend();
+
     if cli.restore {
         restore_last_wallpaper();
         return;
@@ -65,13 +70,19 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
     println!("Attempting to set wallpaper: {}", path);
 
     let backend = *CURRENT_BACKEND.lock();
-    match backend {
+    let result = match backend {
         WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
         WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
         WallpaperBackend::Swww => set_swww_wallpaper(path).await,
         WallpaperBackend::Wallutils => set_wallutils_wallpaper(path).await,
         WallpaperBackend::Feh => set_feh_wallpaper(path).await,
+    };
+
+    if result.is_ok() {
+        gui::save_wallpaper_backend(&backend);
     }
+
+    result
 }
 
 async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
@@ -234,6 +245,7 @@ pub fn set_wallpaper_backend(backend: WallpaperBackend) {
         drop_all_wallpapers(previous_backend).await;
         kill_previous_backend(previous_backend).await;
     });
+    gui::save_wallpaper_backend(&backend);
 }
 
 async fn kill_previous_backend(backend: WallpaperBackend) {
@@ -280,5 +292,11 @@ fn restore_last_wallpaper() {
         }
     } else {
         eprintln!("No last wallpaper found to restore");
+    }
+}
+
+pub fn load_wallpaper_backend() {
+    if let Some(backend) = gui::load_wallpaper_backend() {
+        *CURRENT_BACKEND.lock() = backend;
     }
 }
