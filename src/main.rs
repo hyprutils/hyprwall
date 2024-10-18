@@ -31,9 +31,6 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
-    let rt = Runtime::new().expect("Failed to create Tokio runtime");
-    let _guard = rt.enter();
-
     if cli.restore {
         restore_last_wallpaper();
         return;
@@ -271,7 +268,16 @@ async fn drop_all_wallpapers(backend: WallpaperBackend) {
 
 fn restore_last_wallpaper() {
     if let Some(last_wallpaper) = gui::load_last_wallpaper() {
-        set_wallpaper(last_wallpaper);
+        let rt = Runtime::new().expect("Failed to create Tokio runtime");
+        match rt.block_on(set_wallpaper_internal(&last_wallpaper)) {
+            Ok(_) => {
+                println!("Wallpaper restored successfully");
+                gui::save_last_wallpaper(&last_wallpaper);
+            }
+            Err(e) => {
+                eprintln!("Error restoring wallpaper: {}", e);
+            }
+        }
     } else {
         eprintln!("No last wallpaper found to restore");
     }
