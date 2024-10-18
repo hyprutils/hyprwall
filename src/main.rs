@@ -1,5 +1,6 @@
 mod gui;
 
+use clap::Parser;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
@@ -20,9 +21,25 @@ pub enum WallpaperBackend {
     Feh,
 }
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[arg(short = 'r', long, help = "Restore the last selected wallpaper")]
+    restore: bool,
+}
+
 fn main() {
+    let cli = Cli::parse();
+
     let rt = Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
+
+    load_wallpaper_backend();
+
+    if cli.restore {
+        restore_last_wallpaper();
+        return;
+    }
 
     let app = Application::builder()
         .application_id("nnyyxxxx.hyprwall")
@@ -35,7 +52,10 @@ fn main() {
 pub fn set_wallpaper(path: String) {
     glib::spawn_future_local(async move {
         match set_wallpaper_internal(&path).await {
-            Ok(_) => println!("Wallpaper set successfully"),
+            Ok(_) => {
+                println!("Wallpaper set successfully");
+                gui::save_last_wallpaper(&path);
+            }
             Err(e) => {
                 eprintln!("Error setting wallpaper: {}", e);
                 gui::custom_error_popup("Error setting wallpaper", &e, true);
@@ -50,13 +70,19 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
     println!("Attempting to set wallpaper: {}", path);
 
     let backend = *CURRENT_BACKEND.lock();
-    match backend {
+    let result = match backend {
         WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
         WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
         WallpaperBackend::Swww => set_swww_wallpaper(path).await,
         WallpaperBackend::Wallutils => set_wallutils_wallpaper(path).await,
         WallpaperBackend::Feh => set_feh_wallpaper(path).await,
+    };
+
+    if result.is_ok() {
+        gui::save_wallpaper_backend(&backend);
     }
+
+    result
 }
 
 async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
@@ -80,8 +106,19 @@ async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
 }
 
 async fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
-    let command = format!("swaybg -i \"{}\" -m fill", path);
-    spawn_background_process(&command).await
+    let command = format!("swaybg -i \"{}\" -m fill &", path);
+    TokioCommand::new("sh")
+        .arg("-c")
+        .arg(&command)
+        .spawn()
+        .map_err(|e| format!("Failed to start swaybg: {}", e))?;
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    if is_process_running("swaybg").await {
+        Ok(())
+    } else {
+        Err("swaybg failed to start or crashed immediately".to_string())
+    }
 }
 
 async fn set_swww_wallpaper(path: &str) -> Result<(), String> {
@@ -219,6 +256,7 @@ pub fn set_wallpaper_backend(backend: WallpaperBackend) {
         drop_all_wallpapers(previous_backend).await;
         kill_previous_backend(previous_backend).await;
     });
+    gui::save_wallpaper_backend(&backend);
 }
 
 async fn kill_previous_backend(backend: WallpaperBackend) {
@@ -248,5 +286,28 @@ async fn drop_all_wallpapers(backend: WallpaperBackend) {
             let _ = TokioCommand::new("swww").args(["clear"]).status().await;
         }
         _ => {}
+    }
+}
+
+fn restore_last_wallpaper() {
+    if let Some(last_wallpaper) = gui::load_last_wallpaper() {
+        let rt = Runtime::new().expect("Failed to create Tokio runtime");
+        match rt.block_on(set_wallpaper_internal(&last_wallpaper)) {
+            Ok(_) => {
+                println!("Wallpaper restored successfully");
+                gui::save_last_wallpaper(&last_wallpaper);
+            }
+            Err(e) => {
+                eprintln!("Error restoring wallpaper: {}", e);
+            }
+        }
+    } else {
+        eprintln!("No last wallpaper found to restore");
+    }
+}
+
+pub fn load_wallpaper_backend() {
+    if let Some(backend) = gui::load_wallpaper_backend() {
+        *CURRENT_BACKEND.lock() = backend;
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "hyprwall"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Nyx <nnyyxxxx@protonmail.com>"]
 license = "GPL-2.0"
 description = "GUI for setting wallpapers with Hyprpaper, written in blazingly fast Rust!"
@@ -16,6 +16,7 @@ categories = ["gui"]
 edition = "2021"
 
 [dependencies]
+clap = { version = "4.3", features = ["derive"] }
 gtk = { version = "0.9.2", package = "gtk4" }
 glib = { version = "0.18.0", features = ["v2_68"] }
 gio = "0.18.0"

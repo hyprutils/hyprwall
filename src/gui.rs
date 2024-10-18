@@ -160,7 +160,16 @@ pub fn build_ui(app: &Application) {
     backend_combo.append(Some("swww"), "Swww");
     backend_combo.append(Some("wallutils"), "Wallutils");
     backend_combo.append(Some("feh"), "Feh");
-    backend_combo.set_active_id(Some("hyprpaper"));
+
+    let current_backend = *crate::CURRENT_BACKEND.lock();
+    let backend_id = match current_backend {
+        WallpaperBackend::Hyprpaper => "hyprpaper",
+        WallpaperBackend::Swaybg => "swaybg",
+        WallpaperBackend::Swww => "swww",
+        WallpaperBackend::Wallutils => "wallutils",
+        WallpaperBackend::Feh => "feh",
+    };
+    backend_combo.set_active_id(Some(backend_id));
 
     backend_combo.connect_changed(|combo| {
         if let Some(active_id) = combo.active_id() {
@@ -430,4 +439,72 @@ pub fn custom_error_popup(title: &str, text: &str, modal: bool) {
     });
 
     dialog.show();
+}
+
+pub fn load_last_wallpaper() -> Option<String> {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    fs::File::open(config_path).ok().and_then(|mut file| {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).ok()?;
+        contents
+            .lines()
+            .find(|line| line.starts_with("last_wallpaper = "))
+            .map(|line| line.trim_start_matches("last_wallpaper = ").to_string())
+    })
+}
+
+pub fn save_last_wallpaper(path: &str) {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    if let Ok(mut contents) = fs::read_to_string(&config_path) {
+        if let Some(line) = contents
+            .lines()
+            .find(|line| line.starts_with("last_wallpaper = "))
+        {
+            contents = contents.replace(line, &format!("last_wallpaper = {}", path));
+        } else {
+            contents.push_str(&format!("\nlast_wallpaper = {}", path));
+        }
+        let _ = fs::write(config_path, contents);
+    }
+}
+
+pub fn save_wallpaper_backend(backend: &WallpaperBackend) {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    if let Ok(mut contents) = fs::read_to_string(&config_path) {
+        let backend_str = match backend {
+            WallpaperBackend::Hyprpaper => "hyprpaper",
+            WallpaperBackend::Swaybg => "swaybg",
+            WallpaperBackend::Swww => "swww",
+            WallpaperBackend::Wallutils => "wallutils",
+            WallpaperBackend::Feh => "feh",
+        };
+        if let Some(line) = contents.lines().find(|line| line.starts_with("backend = ")) {
+            contents = contents.replace(line, &format!("backend = {}", backend_str));
+        } else {
+            contents.push_str(&format!("\nbackend = {}", backend_str));
+        }
+        let _ = fs::write(config_path, contents);
+    }
+}
+
+pub fn load_wallpaper_backend() -> Option<WallpaperBackend> {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    fs::File::open(config_path).ok().and_then(|mut file| {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).ok()?;
+        contents
+            .lines()
+            .find(|line| line.starts_with("backend = "))
+            .and_then(|line| {
+                let backend_str = line.trim_start_matches("backend = ");
+                match backend_str {
+                    "hyprpaper" => Some(WallpaperBackend::Hyprpaper),
+                    "swaybg" => Some(WallpaperBackend::Swaybg),
+                    "swww" => Some(WallpaperBackend::Swww),
+                    "wallutils" => Some(WallpaperBackend::Wallutils),
+                    "feh" => Some(WallpaperBackend::Feh),
+                    _ => None,
+                }
+            })
+    })
 }
