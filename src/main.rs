@@ -12,6 +12,7 @@ lazy_static! {
 
 static INIT: Once = Once::new();
 
+#[derive(Clone, Copy)]
 pub enum WallpaperBackend {
     Hyprpaper,
     Swaybg,
@@ -236,5 +237,48 @@ fn start_process(command: &str) -> Result<(), String> {
 }
 
 pub fn set_wallpaper_backend(backend: WallpaperBackend) {
-    *CURRENT_BACKEND.lock() = backend;
+    let previous_backend = {
+        let mut current = CURRENT_BACKEND.lock();
+        let prev = *current;
+        *current = backend;
+        prev
+    };
+    drop_all_wallpapers(previous_backend);
+    kill_previous_backend(previous_backend);
+}
+
+fn kill_previous_backend(backend: WallpaperBackend) {
+    let process_name = match backend {
+        WallpaperBackend::Hyprpaper => "hyprpaper",
+        WallpaperBackend::Swaybg => "swaybg",
+        WallpaperBackend::Swww => "swww",
+        WallpaperBackend::Wallutils => return,
+        WallpaperBackend::Feh => return,
+    };
+
+    let _ = Command::new("killall")
+        .arg(process_name)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+}
+
+fn drop_all_wallpapers(backend: WallpaperBackend) {
+    match backend {
+        WallpaperBackend::Hyprpaper => {
+            let _ = Command::new("hyprctl")
+                .args(&["hyprpaper", "unload", "all"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+        WallpaperBackend::Swww => {
+            let _ = Command::new("swww")
+                .args(&["clear"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+        _ => {}
+    }
 }
