@@ -17,7 +17,7 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 - **Supports swaybg, swww, wallutils, feh, and hyprpaper** - Hyprwall supports a variety of wallpaper backends, so you can use it with your preferred wallpaper tool.
 
 ## Requirements
-- Hyprland with IPC enabled
+- Hyprland with IPC enabled (only applies to hyprland / hyprpaper users)
 - any backend listed above installed
 - GTK-4 installed
 
