@@ -431,3 +431,30 @@ pub fn custom_error_popup(title: &str, text: &str, modal: bool) {
 
     dialog.show();
 }
+
+pub fn load_last_wallpaper() -> Option<String> {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    fs::File::open(config_path).ok().and_then(|mut file| {
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).ok()?;
+        contents
+            .lines()
+            .find(|line| line.starts_with("last_wallpaper = "))
+            .map(|line| line.trim_start_matches("last_wallpaper = ").to_string())
+    })
+}
+
+pub fn save_last_wallpaper(path: &str) {
+    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    if let Ok(mut contents) = fs::read_to_string(&config_path) {
+        if let Some(line) = contents
+            .lines()
+            .find(|line| line.starts_with("last_wallpaper = "))
+        {
+            contents = contents.replace(line, &format!("last_wallpaper = {}", path));
+        } else {
+            contents.push_str(&format!("\nlast_wallpaper = {}", path));
+        }
+        let _ = fs::write(config_path, contents);
+    }
+}

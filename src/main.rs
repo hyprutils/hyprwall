@@ -1,5 +1,6 @@
 mod gui;
 
+use clap::Parser;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
@@ -20,9 +21,23 @@ pub enum WallpaperBackend {
     Feh,
 }
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[arg(long, help = "Restore the last selected wallpaper")]
+    restore: bool,
+}
+
 fn main() {
+    let cli = Cli::parse();
+
     let rt = Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
+
+    if cli.restore {
+        restore_last_wallpaper();
+        return;
+    }
 
     let app = Application::builder()
         .application_id("nnyyxxxx.hyprwall")
@@ -35,7 +50,10 @@ fn main() {
 pub fn set_wallpaper(path: String) {
     glib::spawn_future_local(async move {
         match set_wallpaper_internal(&path).await {
-            Ok(_) => println!("Wallpaper set successfully"),
+            Ok(_) => {
+                println!("Wallpaper set successfully");
+                gui::save_last_wallpaper(&path);
+            }
             Err(e) => {
                 eprintln!("Error setting wallpaper: {}", e);
                 gui::custom_error_popup("Error setting wallpaper", &e, true);
@@ -248,5 +266,13 @@ async fn drop_all_wallpapers(backend: WallpaperBackend) {
             let _ = TokioCommand::new("swww").args(["clear"]).status().await;
         }
         _ => {}
+    }
+}
+
+fn restore_last_wallpaper() {
+    if let Some(last_wallpaper) = gui::load_last_wallpaper() {
+        set_wallpaper(last_wallpaper);
+    } else {
+        eprintln!("No last wallpaper found to restore");
     }
 }
