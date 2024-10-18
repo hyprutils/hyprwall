@@ -76,7 +76,7 @@ fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
 }
 
 fn set_swaybg_wallpaper(path: &str) -> Result<(), String> {
-    let status = Command::new("swaybg")
+    Command::new("swaybg")
         .arg("-i")
         .arg(path)
         .arg("-m")

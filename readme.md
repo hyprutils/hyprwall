@@ -1,7 +1,7 @@
 <div align='center'>
 
 ## Hyprwall 🚀🦀
-An unofficial GUI for setting wallpapers with Hyprpaper, built with GTK4 and Rust. 🚀🦀<br>
+An unofficial GUI for setting wallpapers with multiple backends, built with GTK4 and Rust. 🚀🦀<br>
 
 ![Preview](.github/preview.png)
 
@@ -14,10 +14,11 @@ An unofficial GUI for setting wallpapers with Hyprpaper, built with GTK4 and Rus
 - **Wrapping** - Hyprwall supports wrapping, so if you choose to you can have a lot of wallpapers shown in the GUI at once (wraps with window size).
 - **Performance** - Hyprwall is designed to be performant, it uses a thread pool to load images in parallel and caches images.
 - **High capacity** - Hyprwall can handle a large number of wallpapers (over 1000 at one time!) without any issues.
+- **Supports swaybg, swww, wallutils, feh, and hyprpaper** - Hyprwall supports a variety of wallpaper backends, so you can use it with your preferred wallpaper tool.
 
 ## Requirements
 - Hyprland with IPC enabled
-- Hyprpaper installed
+- any backend listed above installed
 - GTK-4 installed
 
 ## Installation
