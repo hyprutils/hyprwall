@@ -15,7 +15,7 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 - **Performance** - Hyprwall is designed to be performant, it uses a thread pool to load images in parallel and caches images.
 - **High capacity** - Hyprwall can handle a large number of wallpapers (over 1000 at one time!) without any issues.
 - **Multiple monitors** - Hyprwall supports setting wallpapers on **Multiple** monitors at once.
-- **True async** - Hyprwall is built to be asyncronous, it uses tokio to run commands in this manner massively improving performance.
+- **True async** - Hyprwall is built to be asynchronous, it uses tokio to run commands in this manner massively improving performance.
 - **Supports swaybg, swww, wallutils, feh, and hyprpaper** - Hyprwall supports a variety of wallpaper backends, so you can use it with your preferred wallpaper tool.
 
 ## Requirements
