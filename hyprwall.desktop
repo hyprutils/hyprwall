@@ -2,7 +2,7 @@
 Name=HyprWall
 Comment=GUI for setting wallpapers with Hyprpaper, written in blazingly fast Rust!
 Exec=/usr/bin/hyprwall
-Icon=preferences-system
+Icon=hyprwall
 Type=Application
 Terminal=false
 Categories=Utility;
