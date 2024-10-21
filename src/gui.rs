@@ -116,6 +116,7 @@ pub fn build_ui(app: &Application) {
         .title("Hyprpaper Configuration")
         .default_width(800)
         .default_height(600)
+        .icon_name("hyprwall")
         .build();
 
     let scrolled_window = ScrolledWindow::builder()

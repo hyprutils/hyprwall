@@ -1,9 +1,9 @@
 <div align='center'>
 
-## Hyprwall 🚀🦀
+## Hyprwall
 An unofficial GUI for setting wallpapers with multiple backends, built with GTK4 and Rust. 🚀🦀<br>
 
-![Preview](.github/preview.png)
+![Logo](.github/hyprwall.png)
 
 </div>
 
@@ -18,6 +18,13 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 - **True async** - Hyprwall is built to be asynchronous, it uses tokio to run commands in this manner massively improving performance.
 - **Cli args** - Hyprwall supports command line arguments, to view these type **`hyprwall --help`**, **--restore** is one of them, if you wish you can restore your last used wallpaper in the gui with this argument.
 - **Supports swaybg, swww, wallutils, feh, and hyprpaper** - Hyprwall supports a variety of wallpaper backends, so you can use it with your preferred wallpaper tool.
+
+<div align='center'>
+
+## Preview
+![Preview](.github/preview.png)
+
+</div>
 
 ## Requirements
 - Hyprland with IPC enabled & hyprpaper.conf created **(only applies to hyprland / hyprpaper users)**
