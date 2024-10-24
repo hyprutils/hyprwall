@@ -113,7 +113,7 @@ impl ImageLoader {
 pub fn build_ui(app: &Application) {
     let window = ApplicationWindow::builder()
         .application(app)
-        .title("Hyprpaper Configuration")
+        .title("Hyprwall")
         .default_width(800)
         .default_height(600)
         .icon_name("hyprwall")
