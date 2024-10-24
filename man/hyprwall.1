@@ -1,0 +1,75 @@
+.\" manpage for Hyprwall
+.TH "hyprwall" "1" "October 2024" "" "Hyprwall Manual"
+
+.SH NAME
+hyprwall \- A tool for setting wallpapers on Wayland (multiple backends). Written in blazingly fast Rust!
+
+.SH SYNOPSIS
+\fBhyprwall [OPTIONS]\fR
+
+.SH DESCRIPTION
+An unofficial GUI for setting wallpapers with multiple backends, built with GTK4 and Rust.
+.br
+Supports supports a variety of wallpaper backends: \fIswaybg\fR, \fIswww\fR, \fIwallutils\fR, \fIfeh\fR, and \fIhyprpaper\fR.
+
+.SH GUI
+.TP
+To launch Hyprwall in GUI mode, simply run:
+hyprwall
+
+.SH OPTIONS
+.TP
+\fB\-r\fR, \fB\-\-restore\fR
+Restore the last selected wallpaper.
+
+.TP
+\fB\-R\fR, \fB\-\-random\fR
+Set a random wallpaper.
+
+.TP
+\fB\-b\fR, \fB\-\-backend\fR \fI<backend>\fR
+Set the wallpaper backend.
+
+.TP
+\fB\-f\fR, \fB\-\-folder\fR \fI<folder>\fR
+Set the wallpaper folder.
+
+.TP
+\fB\-w\fR, \fB\-\-wallpaper\fR \fI<wallpaper>\fR
+Set a specific wallpaper.
+
+.TP
+\fB\-g\fR, \fB\-\-generate\fR
+Generate the config file.
+
+.TP
+\fB\-F\fR, \fB\-\-force\fR
+Force overwrite of existing config file.
+.br
+Should be used with \fB-g\fR.
+
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print help
+
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version
+
+.SH SUPPORT
+If you find Hyprwall useful, please consider giving it a star on GitHub to show your support!
+https://github.com/nnyyxxxx/hyprwall
+
+.SH AUTHOR
+Written by Adam Perkowski.
+<adas1per@protonmail.com>
+
+.SH REPORTING BUGS
+Please consider submitting feedback if you encounter any issues.
+https://github.com/nnyyxxxx/hyprwall/issues
+
+.SH COPYRIGHT
+Copyright (c) 2024 Nyx.
+.br
+GPL-2.0 License.
+https://www.gnu.org/licenses/old-licenses/gpl-2.0
