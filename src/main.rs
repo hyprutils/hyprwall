@@ -46,6 +46,9 @@ struct Cli {
 
     #[arg(short = 'g', long, help = "Generate the config file")]
     generate: bool,
+
+    #[arg(long, help = "Force overwrite of existing config file")]
+    force: bool,
 }
 
 fn main() {
@@ -54,16 +57,21 @@ fn main() {
     let rt = Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
 
+    if cli.generate {
+        if !config_exists() || cli.force {
+            generate_config();
+            println!("Config file generated successfully.");
+        } else {
+            println!("Config file already exists. Use --force to overwrite.");
+        }
+        return;
+    }
+
     if !config_exists() {
         generate_config();
     }
 
     load_wallpaper_backend();
-
-    if cli.generate {
-        generate_config();
-        return;
-    }
 
     if let Some(backend) = cli.backend {
         set_backend(&backend);
