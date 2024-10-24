@@ -423,6 +423,17 @@ async fn ensure_backend_running() -> Result<(), String> {
 async fn ensure_hyprpaper_running() -> Result<(), String> {
     if !is_process_running("hyprpaper").await {
         println!("hyprpaper is not running. Attempting to start it...");
+
+        let hyprpaper_config_path = tilde("~/.config/hypr/hyprpaper.conf").into_owned();
+        let hyprpaper_config_path = Path::new(&hyprpaper_config_path);
+
+        if !hyprpaper_config_path.exists() {
+            std::fs::create_dir_all(hyprpaper_config_path.parent().unwrap())
+                .expect("Failed to create ~/.config/hypr");
+            std::fs::File::create(hyprpaper_config_path)
+                .expect("Failed to create ~/.config/hypr/hyprpaper.conf");
+        }
+
         start_process("hyprpaper").await?;
     }
     Ok(())
