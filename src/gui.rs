@@ -163,6 +163,7 @@ pub fn build_ui(app: &Application) {
     let exit_button = Button::with_label("Exit");
 
     let backend_combo = ComboBoxText::new();
+    backend_combo.append(Some("none"), "None");
     backend_combo.append(Some("hyprpaper"), "Hyprpaper");
     backend_combo.append(Some("swaybg"), "Swaybg");
     backend_combo.append(Some("swww"), "Swww");
@@ -171,6 +172,7 @@ pub fn build_ui(app: &Application) {
 
     let current_backend = *crate::CURRENT_BACKEND.lock();
     let backend_id = match current_backend {
+        WallpaperBackend::None => "none",
         WallpaperBackend::Hyprpaper => "hyprpaper",
         WallpaperBackend::Swaybg => "swaybg",
         WallpaperBackend::Swww => "swww",
@@ -182,6 +184,7 @@ pub fn build_ui(app: &Application) {
     backend_combo.connect_changed(|combo| {
         if let Some(active_id) = combo.active_id() {
             let backend = match active_id.as_str() {
+                "none" => WallpaperBackend::None,
                 "hyprpaper" => WallpaperBackend::Hyprpaper,
                 "swaybg" => WallpaperBackend::Swaybg,
                 "swww" => WallpaperBackend::Swww,
@@ -525,6 +528,7 @@ pub fn save_wallpaper_backend(backend: &WallpaperBackend) {
         WallpaperBackend::Swww => "swww",
         WallpaperBackend::Wallutils => "wallutils",
         WallpaperBackend::Feh => "feh",
+        WallpaperBackend::None => "none",
     };
 
     let mut lines: Vec<String> = contents.lines().map(String::from).collect();

@@ -14,11 +14,12 @@ use tokio::runtime::Runtime;
 
 lazy_static! {
     static ref MONITORS: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::Hyprpaper);
+    static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::None);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WallpaperBackend {
+    None,
     Hyprpaper,
     Swaybg,
     Swww,
@@ -84,7 +85,13 @@ fn main() {
     if let Some(wallpaper) = cli.wallpaper {
         let wallpaper_path = wallpaper.to_string_lossy().into_owned();
         rt.block_on(async {
-            let previous_backend = *CURRENT_BACKEND.lock();
+            let current_backend = *CURRENT_BACKEND.lock();
+            if current_backend == WallpaperBackend::None {
+                eprintln!("No wallpaper backend set. Please set a backend using the -b or --backend option.");
+                return;
+            }
+
+            let previous_backend = current_backend;
             drop_all_wallpapers(previous_backend).await;
             kill_previous_backend(previous_backend).await;
 
@@ -271,6 +278,7 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
         WallpaperBackend::Swww => set_swww_wallpaper(path).await,
         WallpaperBackend::Wallutils => set_wallutils_wallpaper(path).await,
         WallpaperBackend::Feh => set_feh_wallpaper(path).await,
+        WallpaperBackend::None => Err("No wallpaper backend set".to_string()),
     };
 
     if result.is_ok() {
@@ -404,6 +412,7 @@ async fn ensure_backend_running() -> Result<(), String> {
         WallpaperBackend::Swww => ensure_swww_running().await,
         WallpaperBackend::Wallutils => Ok(()),
         WallpaperBackend::Feh => Ok(()),
+        WallpaperBackend::None => Err("No wallpaper backend set".to_string()),
     }
 }
 
@@ -478,6 +487,7 @@ async fn kill_previous_backend(backend: WallpaperBackend) {
         WallpaperBackend::Swww => "swww-daemon",
         WallpaperBackend::Wallutils => return,
         WallpaperBackend::Feh => return,
+        WallpaperBackend::None => return,
     };
 
     let _ = TokioCommand::new("killall")
