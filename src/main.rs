@@ -4,6 +4,9 @@ use clap::Parser;
 use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
+use rand::seq::SliceRandom;
+use shellexpand::tilde;
+use std::path::PathBuf;
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
 
@@ -26,6 +29,9 @@ pub enum WallpaperBackend {
 struct Cli {
     #[arg(short = 'r', long, help = "Restore the last selected wallpaper")]
     restore: bool,
+
+    #[arg(short = 'R', long, help = "Set a random wallpaper")]
+    random: bool,
 }
 
 fn main() {
@@ -41,12 +47,71 @@ fn main() {
         return;
     }
 
+    if cli.random {
+        set_random_wallpaper();
+        return;
+    }
+
     let app = Application::builder()
         .application_id("nnyyxxxx.hyprwall")
         .build();
 
     app.connect_activate(gui::build_ui);
     app.run();
+}
+
+fn set_random_wallpaper() {
+    let rt = Runtime::new().expect("Failed to create Tokio runtime");
+    rt.block_on(async {
+        match get_random_wallpaper().await {
+            Ok(path) => match set_wallpaper_internal(&path).await {
+                Ok(_) => {
+                    println!("Random wallpaper set successfully: {}", path);
+                    gui::save_last_wallpaper(&path);
+                }
+                Err(e) => eprintln!("Error setting random wallpaper: {}", e),
+            },
+            Err(e) => eprintln!("Error getting random wallpaper: {}", e),
+        }
+    });
+}
+
+async fn get_random_wallpaper() -> Result<String, String> {
+    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let contents = tokio::fs::read_to_string(&config_path)
+        .await
+        .map_err(|e| format!("Failed to read config file: {}", e))?;
+
+    let folder = contents
+        .lines()
+        .find(|line| line.starts_with("folder = "))
+        .map(|line| line.trim_start_matches("folder = "))
+        .ok_or_else(|| "Wallpaper folder not found in config".to_string())?;
+
+    let folder_path = PathBuf::from(tilde(folder).into_owned());
+
+    let mut entries = tokio::fs::read_dir(&folder_path)
+        .await
+        .map_err(|e| format!("Failed to read wallpaper directory: {}", e))?;
+
+    let mut wallpapers = Vec::new();
+
+    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+        let path = entry.path();
+        if path.is_file()
+            && matches!(
+                path.extension().and_then(|e| e.to_str()),
+                Some("png" | "jpg" | "jpeg")
+            )
+        {
+            wallpapers.push(path);
+        }
+    }
+
+    wallpapers
+        .choose(&mut rand::thread_rng())
+        .ok_or_else(|| "No wallpapers found".to_string())
+        .map(|p| p.to_string_lossy().into_owned())
 }
 
 pub fn set_wallpaper(path: String) {
