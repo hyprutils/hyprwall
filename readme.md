@@ -27,7 +27,7 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 </div>
 
 ## Requirements
-- Hyprland with IPC enabled & hyprpaper.conf created **(only applies to hyprland / hyprpaper users)**
+- IPC enabled **(only for hyprland / hyprpaper users)**
 - any backend listed above installed
 - GTK-4 installed
 
