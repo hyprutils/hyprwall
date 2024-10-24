@@ -48,7 +48,7 @@ struct Cli {
     #[arg(short = 'g', long, help = "Generate the config file")]
     generate: bool,
 
-    #[arg(long, help = "Force overwrite of existing config file")]
+    #[arg(short = 'F', long, help = "Force overwrite of existing config file (should be used with -g)")]
     force: bool,
 }
 
