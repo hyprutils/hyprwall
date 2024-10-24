@@ -17,7 +17,7 @@ lazy_static! {
     static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::Hyprpaper);
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WallpaperBackend {
     Hyprpaper,
     Swaybg,
@@ -76,6 +76,10 @@ fn main() {
     if let Some(wallpaper) = cli.wallpaper {
         let wallpaper_path = wallpaper.to_string_lossy().into_owned();
         rt.block_on(async {
+            let previous_backend = *CURRENT_BACKEND.lock();
+            drop_all_wallpapers(previous_backend).await;
+            kill_previous_backend(previous_backend).await;
+
             match set_wallpaper_internal(&wallpaper_path).await {
                 Ok(_) => {
                     println!("Wallpaper set successfully: {}", wallpaper_path);
@@ -245,12 +249,15 @@ pub fn set_wallpaper(path: String) {
 }
 
 async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
+    let current_backend = *CURRENT_BACKEND.lock();
+    
+    kill_other_backends(current_backend).await;
+
     ensure_backend_running().await?;
 
     println!("Attempting to set wallpaper: {}", path);
 
-    let backend = *CURRENT_BACKEND.lock();
-    let result = match backend {
+    let result = match current_backend {
         WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
         WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
         WallpaperBackend::Swww => set_swww_wallpaper(path).await,
@@ -259,10 +266,27 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
     };
 
     if result.is_ok() {
-        gui::save_wallpaper_backend(&backend);
+        gui::save_wallpaper_backend(&current_backend);
     }
 
     result
+}
+
+async fn kill_other_backends(current_backend: WallpaperBackend) {
+    let backends = [
+        ("hyprpaper", WallpaperBackend::Hyprpaper),
+        ("swaybg", WallpaperBackend::Swaybg),
+        ("swww-daemon", WallpaperBackend::Swww),
+    ];
+
+    for (process_name, backend) in backends.iter() {
+        if *backend != current_backend {
+            let _ = TokioCommand::new("killall")
+                .arg(process_name)
+                .status()
+                .await;
+        }
+    }
 }
 
 async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
