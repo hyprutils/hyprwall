@@ -6,17 +6,20 @@ use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
 use shellexpand::tilde;
-use std::path::PathBuf;
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
 
 lazy_static! {
     static ref MONITORS: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::Hyprpaper);
+    static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::None);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WallpaperBackend {
+    None,
     Hyprpaper,
     Swaybg,
     Swww,
@@ -32,6 +35,25 @@ struct Cli {
 
     #[arg(short = 'R', long, help = "Set a random wallpaper")]
     random: bool,
+
+    #[arg(short = 'b', long, help = "Set the wallpaper backend", default_value = None)]
+    backend: Option<String>,
+
+    #[arg(short = 'f', long, help = "Set the wallpaper folder", default_value = None)]
+    folder: Option<PathBuf>,
+
+    #[arg(short = 'w', long, help = "Set a specific wallpaper", default_value = None)]
+    wallpaper: Option<PathBuf>,
+
+    #[arg(short = 'g', long, help = "Generate the config file")]
+    generate: bool,
+
+    #[arg(
+        short = 'F',
+        long,
+        help = "Force overwrite of existing config file (should be used with -g)"
+    )]
+    force: bool,
 }
 
 fn main() {
@@ -40,7 +62,53 @@ fn main() {
     let rt = Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
 
+    if cli.generate {
+        if !config_exists() || cli.force {
+            generate_config();
+            println!("Config file generated successfully.");
+        } else {
+            println!("Config file already exists. Use --force to overwrite.");
+        }
+        return;
+    }
+
+    if !config_exists() {
+        generate_config();
+    }
+
     load_wallpaper_backend();
+
+    if let Some(backend) = cli.backend {
+        set_backend(&backend);
+    }
+
+    if let Some(folder) = cli.folder {
+        set_folder(&folder);
+    }
+
+    if let Some(wallpaper) = cli.wallpaper {
+        let wallpaper_path = wallpaper.to_string_lossy().into_owned();
+        rt.block_on(async {
+            let current_backend = *CURRENT_BACKEND.lock();
+            if current_backend == WallpaperBackend::None {
+                eprintln!("No wallpaper backend set. Please set a backend using the -b or --backend option.");
+                return;
+            }
+
+            let previous_backend = current_backend;
+            drop_all_wallpapers(previous_backend).await;
+            kill_previous_backend(previous_backend).await;
+
+            match set_wallpaper_internal(&wallpaper_path).await {
+                Ok(_) => {
+                    println!("Wallpaper set successfully: {}", wallpaper_path);
+                    gui::save_last_wallpaper(&wallpaper_path);
+                }
+                Err(e) => eprintln!("Error setting wallpaper: {}", e),
+            }
+        });
+        return;
+    }
 
     if cli.restore {
         restore_last_wallpaper();
@@ -58,6 +126,76 @@ fn main() {
 
     app.connect_activate(gui::build_ui);
     app.run();
+}
+
+fn config_exists() -> bool {
+    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    Path::new(&config_path).exists()
+}
+
+fn generate_config() {
+    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let config_dir = Path::new(&config_path).parent().unwrap();
+    std::fs::create_dir_all(config_dir).expect("Failed to create config directory");
+
+    let default_config = r#"[Settings]
+folder = none
+backend = none
+last_wallpaper = none
+"#;
+
+    std::fs::write(&config_path, default_config).expect("Failed to write config file");
+    println!("Config file generated at: {}", config_path);
+}
+
+fn set_backend(backend: &str) {
+    let backend = match backend.to_lowercase().as_str() {
+        "hyprpaper" => WallpaperBackend::Hyprpaper,
+        "swaybg" => WallpaperBackend::Swaybg,
+        "swww" => WallpaperBackend::Swww,
+        "wallutils" => WallpaperBackend::Wallutils,
+        "feh" => WallpaperBackend::Feh,
+        _ => {
+            eprintln!("Invalid backend specified. Using default (Hyprpaper).");
+            WallpaperBackend::Hyprpaper
+        }
+    };
+    set_wallpaper_backend(backend);
+    println!("Wallpaper backend set to: {:?}", backend);
+}
+
+fn set_folder(folder: &Path) {
+    if folder.is_dir() {
+        let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+        let mut contents = String::new();
+
+        if let Ok(mut file) = fs::File::open(&config_path) {
+            file.read_to_string(&mut contents).unwrap_or_default();
+        }
+
+        let mut lines: Vec<String> = contents.lines().map(String::from).collect();
+        let folder_line = format!("folder = {}", folder.display());
+
+        if let Some(pos) = lines.iter().position(|line| line.starts_with("folder = ")) {
+            lines[pos] = folder_line;
+        } else {
+            lines.push(folder_line);
+        }
+
+        let new_contents = lines.join("\n");
+
+        if let Ok(mut file) = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&config_path)
+        {
+            let _ = writeln!(file, "{}", new_contents);
+        }
+
+        println!("Wallpaper folder set to: {}", folder.display());
+    } else {
+        eprintln!("Specified folder does not exist or is not a directory.");
+    }
 }
 
 fn set_random_wallpaper() {
@@ -130,24 +268,45 @@ pub fn set_wallpaper(path: String) {
 }
 
 async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
+    let current_backend = *CURRENT_BACKEND.lock();
+
+    kill_other_backends(current_backend).await;
+
     ensure_backend_running().await?;
 
     println!("Attempting to set wallpaper: {}", path);
 
-    let backend = *CURRENT_BACKEND.lock();
-    let result = match backend {
+    let result = match current_backend {
         WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
         WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
         WallpaperBackend::Swww => set_swww_wallpaper(path).await,
         WallpaperBackend::Wallutils => set_wallutils_wallpaper(path).await,
         WallpaperBackend::Feh => set_feh_wallpaper(path).await,
+        WallpaperBackend::None => Err("No wallpaper backend set".to_string()),
     };
 
     if result.is_ok() {
-        gui::save_wallpaper_backend(&backend);
+        gui::save_wallpaper_backend(&current_backend);
     }
 
     result
+}
+
+async fn kill_other_backends(current_backend: WallpaperBackend) {
+    let backends = [
+        ("hyprpaper", WallpaperBackend::Hyprpaper),
+        ("swaybg", WallpaperBackend::Swaybg),
+        ("swww-daemon", WallpaperBackend::Swww),
+    ];
+
+    for (process_name, backend) in backends.iter() {
+        if *backend != current_backend {
+            let _ = TokioCommand::new("killall")
+                .arg(process_name)
+                .status()
+                .await;
+        }
+    }
 }
 
 async fn set_hyprpaper_wallpaper(path: &str) -> Result<(), String> {
@@ -257,6 +416,7 @@ async fn ensure_backend_running() -> Result<(), String> {
         WallpaperBackend::Swww => ensure_swww_running().await,
         WallpaperBackend::Wallutils => Ok(()),
         WallpaperBackend::Feh => Ok(()),
+        WallpaperBackend::None => Err("No wallpaper backend set".to_string()),
     }
 }
 
@@ -331,6 +491,7 @@ async fn kill_previous_backend(backend: WallpaperBackend) {
         WallpaperBackend::Swww => "swww-daemon",
         WallpaperBackend::Wallutils => return,
         WallpaperBackend::Feh => return,
+        WallpaperBackend::None => return,
     };
 
     let _ = TokioCommand::new("killall")
