@@ -15,7 +15,7 @@ use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
     fs,
-    io::Read,
+    io::{Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
     sync::atomic::{AtomicBool, Ordering},
@@ -394,13 +394,31 @@ fn load_last_path() -> Option<PathBuf> {
     })
 }
 
-fn save_last_path(path: &Path) {
+pub fn save_last_path(path: &Path) {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
-    if let Some(parent) = PathBuf::from(&config_path).parent() {
-        let _ = fs::create_dir_all(parent);
+    let mut contents = String::new();
+
+    if let Ok(mut file) = fs::File::open(&config_path) {
+        let _ = file.read_to_string(&mut contents);
     }
-    let content = format!("[Settings]\nfolder = {}", path.to_str().unwrap_or(""));
-    let _ = fs::write(config_path, content);
+
+    if let Some(pos) = contents.find("folder = ") {
+        let end_pos = contents[pos..]
+            .find('\n')
+            .map(|p| p + pos)
+            .unwrap_or(contents.len());
+        contents.replace_range(pos..end_pos, &format!("folder = {}", path.display()));
+    } else {
+        contents.push_str(&format!("folder = {}\n", path.display()));
+    }
+
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&config_path)
+    {
+        let _ = file.write_all(contents.as_bytes());
+    }
 }
 
 fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
@@ -464,35 +482,68 @@ pub fn load_last_wallpaper() -> Option<String> {
 
 pub fn save_last_wallpaper(path: &str) {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
-    if let Ok(mut contents) = fs::read_to_string(&config_path) {
-        if let Some(line) = contents
-            .lines()
-            .find(|line| line.starts_with("last_wallpaper = "))
-        {
-            contents = contents.replace(line, &format!("last_wallpaper = {}", path));
-        } else {
-            contents.push_str(&format!("\nlast_wallpaper = {}", path));
-        }
-        let _ = fs::write(config_path, contents);
+    let mut contents = String::new();
+
+    if let Ok(mut file) = fs::File::open(&config_path) {
+        let _ = file.read_to_string(&mut contents);
+    }
+
+    let mut lines: Vec<String> = contents.lines().map(String::from).collect();
+    let wallpaper_line = format!("last_wallpaper = {}", path);
+
+    if let Some(pos) = lines
+        .iter()
+        .position(|line| line.starts_with("last_wallpaper = "))
+    {
+        lines[pos] = wallpaper_line;
+    } else {
+        lines.push(wallpaper_line);
+    }
+
+    let new_contents = lines.join("\n");
+
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&config_path)
+    {
+        let _ = writeln!(file, "{}", new_contents);
     }
 }
 
 pub fn save_wallpaper_backend(backend: &WallpaperBackend) {
     let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
-    if let Ok(mut contents) = fs::read_to_string(&config_path) {
-        let backend_str = match backend {
-            WallpaperBackend::Hyprpaper => "hyprpaper",
-            WallpaperBackend::Swaybg => "swaybg",
-            WallpaperBackend::Swww => "swww",
-            WallpaperBackend::Wallutils => "wallutils",
-            WallpaperBackend::Feh => "feh",
-        };
-        if let Some(line) = contents.lines().find(|line| line.starts_with("backend = ")) {
-            contents = contents.replace(line, &format!("backend = {}", backend_str));
-        } else {
-            contents.push_str(&format!("\nbackend = {}", backend_str));
-        }
-        let _ = fs::write(config_path, contents);
+    let mut contents = String::new();
+
+    if let Ok(mut file) = fs::File::open(&config_path) {
+        let _ = file.read_to_string(&mut contents);
+    }
+
+    let backend_str = match backend {
+        WallpaperBackend::Hyprpaper => "hyprpaper",
+        WallpaperBackend::Swaybg => "swaybg",
+        WallpaperBackend::Swww => "swww",
+        WallpaperBackend::Wallutils => "wallutils",
+        WallpaperBackend::Feh => "feh",
+    };
+
+    let mut lines: Vec<String> = contents.lines().map(String::from).collect();
+    let backend_line = format!("backend = {}", backend_str);
+
+    if let Some(pos) = lines.iter().position(|line| line.starts_with("backend = ")) {
+        lines[pos] = backend_line;
+    } else {
+        lines.push(backend_line);
+    }
+
+    let new_contents = lines.join("\n");
+
+    if let Ok(mut file) = fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&config_path)
+    {
+        let _ = writeln!(file, "{}", new_contents);
     }
 }
 

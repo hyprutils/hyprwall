@@ -6,7 +6,9 @@ use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
 use shellexpand::tilde;
-use std::path::PathBuf;
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
 
@@ -15,7 +17,7 @@ lazy_static! {
     static ref CURRENT_BACKEND: Mutex<WallpaperBackend> = Mutex::new(WallpaperBackend::Hyprpaper);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum WallpaperBackend {
     Hyprpaper,
     Swaybg,
@@ -32,6 +34,18 @@ struct Cli {
 
     #[arg(short = 'R', long, help = "Set a random wallpaper")]
     random: bool,
+
+    #[arg(short = 'b', long, help = "Set the wallpaper backend", default_value = None)]
+    backend: Option<String>,
+
+    #[arg(short = 'f', long, help = "Set the wallpaper folder", default_value = None)]
+    folder: Option<PathBuf>,
+
+    #[arg(short = 'w', long, help = "Set a specific wallpaper", default_value = None)]
+    wallpaper: Option<PathBuf>,
+
+    #[arg(short = 'g', long, help = "Generate the config file")]
+    generate: bool,
 }
 
 fn main() {
@@ -40,7 +54,29 @@ fn main() {
     let rt = Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
 
+    if !config_exists() {
+        generate_config();
+    }
+
     load_wallpaper_backend();
+
+    if cli.generate {
+        generate_config();
+        return;
+    }
+
+    if let Some(backend) = cli.backend {
+        set_backend(&backend);
+    }
+
+    if let Some(folder) = cli.folder {
+        set_folder(&folder);
+    }
+
+    if let Some(wallpaper) = cli.wallpaper {
+        set_wallpaper(wallpaper.to_string_lossy().into_owned());
+        return;
+    }
 
     if cli.restore {
         restore_last_wallpaper();
@@ -58,6 +94,76 @@ fn main() {
 
     app.connect_activate(gui::build_ui);
     app.run();
+}
+
+fn config_exists() -> bool {
+    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    Path::new(&config_path).exists()
+}
+
+fn generate_config() {
+    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let config_dir = Path::new(&config_path).parent().unwrap();
+    std::fs::create_dir_all(config_dir).expect("Failed to create config directory");
+
+    let default_config = r#"[Settings]
+folder = none
+backend = none
+last_wallpaper = none
+"#;
+
+    std::fs::write(&config_path, default_config).expect("Failed to write config file");
+    println!("Config file generated at: {}", config_path);
+}
+
+fn set_backend(backend: &str) {
+    let backend = match backend.to_lowercase().as_str() {
+        "hyprpaper" => WallpaperBackend::Hyprpaper,
+        "swaybg" => WallpaperBackend::Swaybg,
+        "swww" => WallpaperBackend::Swww,
+        "wallutils" => WallpaperBackend::Wallutils,
+        "feh" => WallpaperBackend::Feh,
+        _ => {
+            eprintln!("Invalid backend specified. Using default (Hyprpaper).");
+            WallpaperBackend::Hyprpaper
+        }
+    };
+    set_wallpaper_backend(backend);
+    println!("Wallpaper backend set to: {:?}", backend);
+}
+
+fn set_folder(folder: &Path) {
+    if folder.is_dir() {
+        let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+        let mut contents = String::new();
+
+        if let Ok(mut file) = fs::File::open(&config_path) {
+            file.read_to_string(&mut contents).unwrap_or_default();
+        }
+
+        let mut lines: Vec<String> = contents.lines().map(String::from).collect();
+        let folder_line = format!("folder = {}", folder.display());
+
+        if let Some(pos) = lines.iter().position(|line| line.starts_with("folder = ")) {
+            lines[pos] = folder_line;
+        } else {
+            lines.push(folder_line);
+        }
+
+        let new_contents = lines.join("\n");
+
+        if let Ok(mut file) = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&config_path)
+        {
+            let _ = writeln!(file, "{}", new_contents);
+        }
+
+        println!("Wallpaper folder set to: {}", folder.display());
+    } else {
+        eprintln!("Specified folder does not exist or is not a directory.");
+    }
 }
 
 fn set_random_wallpaper() {
