@@ -74,7 +74,16 @@ fn main() {
     }
 
     if let Some(wallpaper) = cli.wallpaper {
-        set_wallpaper(wallpaper.to_string_lossy().into_owned());
+        let wallpaper_path = wallpaper.to_string_lossy().into_owned();
+        rt.block_on(async {
+            match set_wallpaper_internal(&wallpaper_path).await {
+                Ok(_) => {
+                    println!("Wallpaper set successfully: {}", wallpaper_path);
+                    gui::save_last_wallpaper(&wallpaper_path);
+                }
+                Err(e) => eprintln!("Error setting wallpaper: {}", e),
+            }
+        });
         return;
     }
 
