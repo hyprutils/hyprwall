@@ -518,15 +518,12 @@ pub fn load_wallpaper_backend() -> Option<WallpaperBackend> {
     })
 }
 
-fn refresh_images(
-    flowbox: &Rc<RefCell<FlowBox>>,
-    image_loader: &Rc<RefCell<ImageLoader>>,
-) {
+fn refresh_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
     let current_folder = {
         let image_loader = image_loader.borrow();
         image_loader.current_folder.clone()
     };
-    
+
     if let Some(folder) = current_folder {
         load_images(&folder, flowbox, image_loader);
     }
