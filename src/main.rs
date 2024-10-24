@@ -250,7 +250,7 @@ pub fn set_wallpaper(path: String) {
 
 async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
     let current_backend = *CURRENT_BACKEND.lock();
-    
+
     kill_other_backends(current_backend).await;
 
     ensure_backend_running().await?;
