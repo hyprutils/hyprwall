@@ -152,6 +152,13 @@ pub fn build_ui(app: &Application) {
         }
     });
 
+    let refresh_button = Button::with_label("Refresh");
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    let image_loader_clone = Rc::clone(&image_loader);
+    refresh_button.connect_clicked(move |_| {
+        refresh_images(&flowbox_clone, &image_loader_clone);
+    });
+
     let random_button = Button::with_label("Random");
     let exit_button = Button::with_label("Exit");
 
@@ -191,6 +198,7 @@ pub fn build_ui(app: &Application) {
     bottom_box.set_margin_bottom(10);
     bottom_box.set_halign(gtk::Align::Center);
     bottom_box.append(&choose_folder_button);
+    bottom_box.append(&refresh_button);
     bottom_box.append(&random_button);
     bottom_box.append(&backend_combo);
     bottom_box.append(&exit_button);
@@ -508,4 +516,15 @@ pub fn load_wallpaper_backend() -> Option<WallpaperBackend> {
                 }
             })
     })
+}
+
+fn refresh_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<ImageLoader>>) {
+    let current_folder = {
+        let image_loader = image_loader.borrow();
+        image_loader.current_folder.clone()
+    };
+
+    if let Some(folder) = current_folder {
+        load_images(&folder, flowbox, image_loader);
+    }
 }
