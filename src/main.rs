@@ -9,6 +9,7 @@ use shellexpand::tilde;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::process::Command as TokioCommand;
 use tokio::runtime::Runtime;
 
@@ -54,6 +55,9 @@ struct Cli {
         help = "Force overwrite of existing config file (should be used with -g)"
     )]
     force: bool,
+
+    #[arg(short = 'C', long, help = "Display copyright information")]
+    copyright: bool,
 }
 
 fn main() {
@@ -69,6 +73,32 @@ fn main() {
         } else {
             println!("Config file already exists. Use --force to overwrite.");
         }
+        return;
+    }
+
+    if cli.copyright {
+        let current_year = 1970
+            + (SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_secs()
+                / (365 * 24 * 60 * 60));
+        println!("Copyright (C) {} Nyx, Adam Perkowski", current_year);
+        println!(
+            "\nThis program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, version 2 of
+the License.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see
+<https://www.gnu.org/licenses/old-licenses/gpl-2.0>."
+        );
         return;
     }
 
