@@ -438,6 +438,16 @@ fn load_images(
                     });
                     button.add_controller(motion_controller);
 
+                    let gesture = gtk::GestureClick::new();
+                    gesture.set_button(3);
+                    let path_clone_preview = path_clone.clone();
+                    gesture.connect_released(move |gesture, _, _, _| {
+                        if let Some(widget) = gesture.widget() {
+                            show_preview_window(&path_clone_preview, &widget);
+                        }
+                    });
+                    button.add_controller(gesture);
+
                     let file_name = Path::new(&path_clone)
                         .file_name()
                         .and_then(|name| name.to_str())
@@ -686,4 +696,84 @@ fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str
     };
 
     flowbox.set_filter_func(Box::new(filter));
+}
+
+fn show_preview_window(path: &str, parent_widget: &impl IsA<gtk::Widget>) {
+    let path = path.to_string();
+    let parent = parent_widget.root().and_downcast::<gtk::Window>();
+
+    glib::spawn_future_local(async move {
+        let window = gtk::Window::new();
+        window.set_title(Some("Preview"));
+        window.set_default_size(800, 600);
+        window.set_modal(true);
+        window.set_transient_for(parent.as_ref());
+
+        let spinner = gtk::Spinner::new();
+        spinner.set_hexpand(true);
+        spinner.set_vexpand(true);
+        spinner.start();
+        window.set_child(Some(&spinner));
+
+        let window_weak = window.downgrade();
+        let key_controller = gtk::EventControllerKey::new();
+        key_controller.connect_key_pressed(move |_, key, _, _| {
+            if key == gdk::Key::Escape {
+                if let Some(window) = window_weak.upgrade() {
+                    window.close();
+                }
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
+            }
+        });
+        window.add_controller(key_controller);
+
+        window.present();
+
+        let path_buf = PathBuf::from(&path);
+        let window_weak = window.downgrade();
+
+        let (sender, receiver) = crossbeam_channel::unbounded::<Result<Texture, String>>();
+
+        std::thread::spawn(move || {
+            let file = gio::File::for_path(&path_buf);
+            match Texture::from_file(&file) {
+                Ok(texture) => {
+                    let _ = sender.send(Ok(texture));
+                }
+                Err(e) => {
+                    let _ = sender.send(Err(e.to_string()));
+                }
+            }
+        });
+
+        glib::source::idle_add_local(move || match receiver.try_recv() {
+            Ok(result) => {
+                if let Some(window) = window_weak.upgrade() {
+                    match result {
+                        Ok(texture) => {
+                            let picture = gtk::Picture::for_paintable(&texture);
+                            picture.set_can_shrink(true);
+                            picture.set_keep_aspect_ratio(true);
+                            picture.set_hexpand(true);
+                            picture.set_vexpand(true);
+                            window.set_child(Some(&picture));
+                        }
+                        Err(error) => {
+                            let error_label =
+                                gtk::Label::new(Some(&format!("Failed to load image: {}", error)));
+                            error_label.set_wrap(true);
+                            error_label.set_margin_start(10);
+                            error_label.set_margin_end(10);
+                            window.set_child(Some(&error_label));
+                        }
+                    }
+                }
+                ControlFlow::Break
+            }
+            Err(crossbeam_channel::TryRecvError::Empty) => ControlFlow::Continue,
+            Err(crossbeam_channel::TryRecvError::Disconnected) => ControlFlow::Break,
+        });
+    });
 }
