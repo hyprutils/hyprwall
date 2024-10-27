@@ -19,6 +19,7 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 - **Cross display protocol/server support** - Hyprwall supports both **wayland** (swaybg, swww, hyprpaper, wallutils) and **x11** (feh, wallutils).
 - **Cli args** - Hyprwall supports command line arguments, to view these type **`hyprwall --help`**, **--restore** is one of them, if you wish you can restore your last used wallpaper in the gui with this argument.
 - **GIF support** - Hyprwall supports GIFs, but only if the **swww** backend is used.
+- **Search functionality** - Hyprwall has search functionality that can filter through your wallpapers in real time.
 - **Supports swaybg, swww, wallutils, feh, and hyprpaper** - Hyprwall supports a variety of wallpaper backends, so you can use it with your preferred wallpaper tool.
 
 <div align='center'>
