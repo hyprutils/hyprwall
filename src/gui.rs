@@ -7,6 +7,8 @@ use gtk::{
     prelude::*,
     Application, ApplicationWindow, Box as GtkBox, Button, ComboBoxText, EventControllerMotion,
     FlowBox, Image, MessageDialog, ScrolledWindow,
+    SearchEntry,
+    FlowBoxChild,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
@@ -37,6 +39,12 @@ struct ImageLoader {
     current_folder: Option<PathBuf>,
     cache: Arc<Mutex<ImageCache>>,
     cancel_flag: Option<Arc<AtomicBool>>,
+}
+
+struct SearchState {
+    search_button: Button,
+    search_entry: SearchEntry,
+    is_expanded: bool,
 }
 
 impl ImageCache {
@@ -213,15 +221,79 @@ pub fn build_ui(app: &Application) {
         }
     });
 
+    let search_button = Button::from_icon_name("system-search-symbolic");
+    let search_entry = SearchEntry::new();
+    search_entry.set_visible(false);
+    search_entry.set_width_chars(25);
+
+    let search_state = Rc::new(RefCell::new(SearchState {
+        search_button: search_button.clone(),
+        search_entry: search_entry.clone(),
+        is_expanded: false,
+    }));
+
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    let search_state_clone = Rc::clone(&search_state);
+    search_button.connect_clicked(move |_| {
+        let mut state = search_state_clone.borrow_mut();
+        state.is_expanded = !state.is_expanded;
+        state.search_entry.set_visible(state.is_expanded);
+        state.search_button.set_visible(!state.is_expanded);
+        if state.is_expanded {
+            state.search_entry.grab_focus();
+        }
+    });
+
+    let search_state_clone = Rc::clone(&search_state);
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    let controller = gtk::EventControllerFocus::new();
+    controller.connect_leave(move |_| {
+        let mut state = search_state_clone.borrow_mut();
+        state.is_expanded = false;
+        state.search_entry.set_visible(false);
+        state.search_button.set_visible(true);
+        filter_wallpapers(&flowbox_clone, state.search_entry.text());
+    });
+    search_entry.add_controller(controller);
+
+    let search_state_clone = Rc::clone(&search_state);
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    search_entry.connect_activate(move |entry| {
+        let mut state = search_state_clone.borrow_mut();
+        state.is_expanded = false;
+        state.search_entry.set_visible(false);
+        state.search_button.set_visible(true);
+        filter_wallpapers(&flowbox_clone, entry.text());
+    });
+
+    let search_state_clone = Rc::clone(&search_state);
+    let flowbox_clone = Rc::clone(&flowbox_ref);
+    search_entry.connect_changed(move |entry| {
+        filter_wallpapers(&flowbox_clone, entry.text());
+    });
+
     let bottom_box = GtkBox::new(gtk::Orientation::Horizontal, 10);
     bottom_box.set_margin_top(10);
     bottom_box.set_margin_bottom(10);
-    bottom_box.set_halign(gtk::Align::Center);
-    bottom_box.append(&choose_folder_button);
-    bottom_box.append(&refresh_button);
-    bottom_box.append(&random_button);
-    bottom_box.append(&backend_combo);
-    bottom_box.append(&exit_button);
+    bottom_box.set_halign(gtk::Align::Fill);
+    bottom_box.set_margin_start(10);
+    bottom_box.set_margin_end(10);
+
+    let left_box = GtkBox::new(gtk::Orientation::Horizontal, 5);
+    left_box.append(&search_button);
+    left_box.append(&search_entry);
+
+    let right_box = GtkBox::new(gtk::Orientation::Horizontal, 10);
+    right_box.set_halign(gtk::Align::Center);
+    right_box.set_hexpand(true);
+    right_box.append(&choose_folder_button);
+    right_box.append(&refresh_button);
+    right_box.append(&random_button);
+    right_box.append(&backend_combo);
+    right_box.append(&exit_button);
+
+    bottom_box.append(&left_box);
+    bottom_box.append(&right_box);
 
     let main_box = GtkBox::new(gtk::Orientation::Vertical, 0);
     main_box.append(&scrolled_window);
@@ -613,4 +685,24 @@ fn refresh_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Imag
         }
         load_images(&folder, flowbox, image_loader);
     }
+}
+
+fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str>) {
+    let search_text = search_text.as_ref().to_lowercase();
+    let flowbox = flowbox.borrow();
+    
+    let filter = move |child: &FlowBoxChild| {
+        if search_text.is_empty() {
+            return true;
+        }
+        
+        if let Some(button) = child.child().and_downcast::<Button>() {
+            if let Some(tooltip) = button.tooltip_text() {
+                return tooltip.to_lowercase().contains(&search_text);
+            }
+        }
+        false
+    };
+    
+    flowbox.set_filter_func(Box::new(filter));
 }
