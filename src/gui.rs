@@ -441,7 +441,7 @@ fn load_images(
                     let gesture = gtk::GestureClick::new();
                     gesture.set_button(3);
                     let path_clone_preview = path_clone.clone();
-                    gesture.connect_pressed(move |gesture, _, _, _| {
+                    gesture.connect_released(move |gesture, _, _, _| {
                         if let Some(widget) = gesture.widget() {
                             show_preview_window(&path_clone_preview, &widget);
                         }
