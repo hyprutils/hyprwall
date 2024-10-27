@@ -66,7 +66,8 @@ impl ImageCache {
 
     fn get_or_insert(&mut self, path: &Path, max_size: i32) -> Option<Texture> {
         self.get(path).or_else(|| {
-            let is_gif = path.extension()
+            let is_gif = path
+                .extension()
                 .and_then(|e| e.to_str())
                 .map_or(false, |ext| ext.eq_ignore_ascii_case("gif"));
 
@@ -99,21 +100,20 @@ impl ImageLoader {
         }
         self.queue.clear();
         self.current_folder = Some(folder.to_path_buf());
-        let current_backend = *crate::CURRENT_BACKEND.lock();
 
         if let Ok(entries) = fs::read_dir(folder) {
             self.queue.extend(entries.filter_map(|entry| {
                 entry.ok().and_then(|e| {
                     let path = e.path();
                     if path.is_file() {
-                        let extension = path.extension()
+                        let extension = path
+                            .extension()
                             .and_then(|e| e.to_str())
                             .map(|s| s.to_lowercase());
-                        
+
                         match extension.as_deref() {
-                            Some("png" | "jpg" | "jpeg") => Some(path),
-                            Some("gif") if current_backend == WallpaperBackend::Swww => Some(path),
-                            _ => None
+                            Some("png" | "jpg" | "jpeg" | "gif") => Some(path),
+                            _ => None,
                         }
                     } else {
                         None
@@ -195,7 +195,9 @@ pub fn build_ui(app: &Application) {
     };
     backend_combo.set_active_id(Some(backend_id));
 
-    backend_combo.connect_changed(|combo| {
+    let flowbox_clone_backend = Rc::clone(&flowbox_ref);
+    let image_loader_clone_backend = Rc::clone(&image_loader);
+    backend_combo.connect_changed(move |combo| {
         if let Some(active_id) = combo.active_id() {
             let backend = match active_id.as_str() {
                 "none" => WallpaperBackend::None,
@@ -207,6 +209,7 @@ pub fn build_ui(app: &Application) {
                 _ => return,
             };
             crate::set_wallpaper_backend(backend);
+            refresh_images(&flowbox_clone_backend, &image_loader_clone_backend);
         }
     });
 
@@ -226,12 +229,12 @@ pub fn build_ui(app: &Application) {
 
     window.set_child(Some(&main_box));
 
-    let flowbox_clone = Rc::clone(&flowbox_ref);
-    let image_loader_clone = Rc::clone(&image_loader);
+    let flowbox_clone_window = Rc::clone(&flowbox_ref);
+    let image_loader_clone_window = Rc::clone(&image_loader);
     window.connect_show(move |_| {
         if let Some(last_path) = load_last_path() {
-            let flowbox_clone2 = Rc::clone(&flowbox_clone);
-            let image_loader_clone2 = Rc::clone(&image_loader_clone);
+            let flowbox_clone2 = Rc::clone(&flowbox_clone_window);
+            let image_loader_clone2 = Rc::clone(&image_loader_clone_window);
             glib::idle_add_local(move || {
                 load_images(&last_path, &flowbox_clone2, &image_loader_clone2);
                 glib::ControlFlow::Break
@@ -239,10 +242,10 @@ pub fn build_ui(app: &Application) {
         }
     });
 
-    let flowbox_clone = Rc::clone(&flowbox_ref);
-    let image_loader_clone = Rc::clone(&image_loader);
+    let flowbox_clone_random = Rc::clone(&flowbox_ref);
+    let image_loader_clone_random = Rc::clone(&image_loader);
     random_button.connect_clicked(move |_| {
-        set_random_wallpaper(&flowbox_clone, &image_loader_clone);
+        set_random_wallpaper(&flowbox_clone_random, &image_loader_clone_random);
     });
 
     let app_clone = app.clone();
@@ -302,7 +305,7 @@ fn load_images(
 
     let batch = image_loader.queue.drain(..).collect::<Vec<_>>();
     let cache = Arc::clone(&image_loader.cache);
-    let current_backend = *crate::CURRENT_BACKEND.lock();
+    let backend_supports_gif = load_wallpaper_backend() == Some(WallpaperBackend::Swww);
 
     let flowbox_clone = Rc::clone(flowbox);
     let (sender, receiver) = unbounded::<(Texture, String)>();
@@ -330,7 +333,7 @@ fn load_images(
                     .and_then(|e| e.to_str())
                     .map_or(false, |ext| ext.eq_ignore_ascii_case("gif"));
 
-                if is_gif && current_backend != WallpaperBackend::Swww {
+                if is_gif && !backend_supports_gif {
                     return;
                 }
 
@@ -605,6 +608,9 @@ fn refresh_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Imag
     };
 
     if let Some(folder) = current_folder {
+        while let Some(child) = flowbox.borrow().first_child() {
+            flowbox.borrow().remove(&child);
+        }
         load_images(&folder, flowbox, image_loader);
     }
 }
