@@ -232,9 +232,14 @@ pub fn build_ui(app: &Application) {
     });
 
     let popover_clone = popover.clone();
+    search_entry.connect_activate(move |_| {
+        popover_clone.popdown();
+    });
+
+    let popover_clone = popover.clone();
     let key_controller = gtk::EventControllerKey::new();
     key_controller.connect_key_pressed(move |_, key, _, _| {
-        if key == gdk::Key::Escape || key == gdk::Key::Return {
+        if key == gdk::Key::Escape {
             popover_clone.popdown();
             glib::Propagation::Stop
         } else {
