@@ -66,8 +66,17 @@ impl ImageCache {
 
     fn get_or_insert(&mut self, path: &Path, max_size: i32) -> Option<Texture> {
         self.get(path).or_else(|| {
-            let pixbuf = Pixbuf::from_file_at_scale(path, max_size, max_size, true).ok()?;
-            let texture = Texture::for_pixbuf(&pixbuf);
+            let is_gif = path.extension()
+                .and_then(|e| e.to_str())
+                .map_or(false, |ext| ext.eq_ignore_ascii_case("gif"));
+
+            let texture = if is_gif {
+                Texture::from_file(&gio::File::for_path(path)).ok()?
+            } else {
+                let pixbuf = Pixbuf::from_file_at_scale(path, max_size, max_size, true).ok()?;
+                Texture::for_pixbuf(&pixbuf)
+            };
+
             self.insert(path.to_path_buf(), texture.clone());
             Some(texture)
         })
@@ -90,17 +99,22 @@ impl ImageLoader {
         }
         self.queue.clear();
         self.current_folder = Some(folder.to_path_buf());
+        let current_backend = *crate::CURRENT_BACKEND.lock();
+
         if let Ok(entries) = fs::read_dir(folder) {
             self.queue.extend(entries.filter_map(|entry| {
                 entry.ok().and_then(|e| {
                     let path = e.path();
-                    if path.is_file()
-                        && matches!(
-                            path.extension().and_then(|e| e.to_str()),
-                            Some("png" | "jpg" | "jpeg")
-                        )
-                    {
-                        Some(path)
+                    if path.is_file() {
+                        let extension = path.extension()
+                            .and_then(|e| e.to_str())
+                            .map(|s| s.to_lowercase());
+                        
+                        match extension.as_deref() {
+                            Some("png" | "jpg" | "jpeg") => Some(path),
+                            Some("gif") if current_backend == WallpaperBackend::Swww => Some(path),
+                            _ => None
+                        }
                     } else {
                         None
                     }
@@ -288,6 +302,7 @@ fn load_images(
 
     let batch = image_loader.queue.drain(..).collect::<Vec<_>>();
     let cache = Arc::clone(&image_loader.cache);
+    let current_backend = *crate::CURRENT_BACKEND.lock();
 
     let flowbox_clone = Rc::clone(flowbox);
     let (sender, receiver) = unbounded::<(Texture, String)>();
@@ -309,6 +324,16 @@ fn load_images(
                 if cancel_flag_clone.load(Ordering::Relaxed) {
                     return;
                 }
+
+                let is_gif = path
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map_or(false, |ext| ext.eq_ignore_ascii_case("gif"));
+
+                if is_gif && current_backend != WallpaperBackend::Swww {
+                    return;
+                }
+
                 let texture = {
                     let mut cache = cache.lock();
                     match cache.get_or_insert(path, 250) {
