@@ -438,6 +438,16 @@ fn load_images(
                     });
                     button.add_controller(motion_controller);
 
+                    let gesture = gtk::GestureClick::new();
+                    gesture.set_button(3);
+                    let path_clone_preview = path_clone.clone();
+                    gesture.connect_pressed(move |gesture, _, _, _| {
+                        if let Some(widget) = gesture.widget() {
+                            show_preview_window(&path_clone_preview, &widget);
+                        }
+                    });
+                    button.add_controller(gesture);
+
                     let file_name = Path::new(&path_clone)
                         .file_name()
                         .and_then(|name| name.to_str())
@@ -686,4 +696,39 @@ fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str
     };
 
     flowbox.set_filter_func(Box::new(filter));
+}
+
+fn show_preview_window(path: &str, parent_widget: &impl IsA<gtk::Widget>) {
+    let window = gtk::Window::new();
+    window.set_title(Some("Preview"));
+    window.set_default_size(800, 600);
+    window.set_modal(true);
+    window.set_transient_for(parent_widget.root().and_downcast_ref::<gtk::Window>());
+
+    let scrolled = ScrolledWindow::new();
+    scrolled.set_hexpand(true);
+    scrolled.set_vexpand(true);
+
+    let image = Image::from_file(path);
+    image.set_hexpand(true);
+    image.set_vexpand(true);
+
+    scrolled.set_child(Some(&image));
+    window.set_child(Some(&scrolled));
+
+    let key_controller = gtk::EventControllerKey::new();
+    let window_weak = window.downgrade();
+    key_controller.connect_key_pressed(move |_, key, _, _| {
+        if key == gdk::Key::Escape {
+            if let Some(window) = window_weak.upgrade() {
+                window.close();
+            }
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    window.add_controller(key_controller);
+
+    window.present();
 }
