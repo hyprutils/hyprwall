@@ -39,12 +39,6 @@ struct ImageLoader {
     cancel_flag: Option<Arc<AtomicBool>>,
 }
 
-struct SearchState {
-    search_button: Button,
-    search_entry: SearchEntry,
-    is_expanded: bool,
-}
-
 impl ImageCache {
     fn new() -> Self {
         Self {
@@ -221,47 +215,42 @@ pub fn build_ui(app: &Application) {
 
     let search_button = Button::from_icon_name("system-search-symbolic");
     let search_entry = SearchEntry::new();
-    search_entry.set_visible(false);
     search_entry.set_width_chars(25);
 
-    let search_state = Rc::new(RefCell::new(SearchState {
-        search_button: search_button.clone(),
-        search_entry: search_entry.clone(),
-        is_expanded: false,
-    }));
+    let popover = gtk::Popover::new();
+    popover.set_child(Some(&search_entry));
+    popover.set_position(gtk::PositionType::Top);
+    popover.set_parent(&search_button);
 
-    let search_state_clone = Rc::clone(&search_state);
+    let popover_clone = popover.clone();
+    let search_entry_clone = search_entry.clone();
     search_button.connect_clicked(move |_| {
-        let mut state = search_state_clone.borrow_mut();
-        state.is_expanded = !state.is_expanded;
-        state.search_entry.set_visible(state.is_expanded);
-        state.search_button.set_visible(!state.is_expanded);
-        if state.is_expanded {
-            state.search_entry.grab_focus();
+        if !popover_clone.is_visible() {
+            popover_clone.popup();
+            search_entry_clone.grab_focus();
         }
     });
 
-    let search_state_clone = Rc::clone(&search_state);
-    let flowbox_clone = Rc::clone(&flowbox_ref);
-    let controller = gtk::EventControllerFocus::new();
-    controller.connect_leave(move |_| {
-        let mut state = search_state_clone.borrow_mut();
-        state.is_expanded = false;
-        state.search_entry.set_visible(false);
-        state.search_button.set_visible(true);
-        filter_wallpapers(&flowbox_clone, state.search_entry.text());
+    let popover_clone = popover.clone();
+    let key_controller = gtk::EventControllerKey::new();
+    key_controller.connect_key_pressed(move |_, key, _, _| {
+        if key == gdk::Key::Escape || key == gdk::Key::Return {
+            popover_clone.popdown();
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
     });
-    search_entry.add_controller(controller);
-
-    let flowbox_clone = Rc::clone(&flowbox_ref);
-    search_entry.connect_activate(move |entry| {
-        filter_wallpapers(&flowbox_clone, entry.text());
-    });
+    search_entry.add_controller(key_controller);
 
     let flowbox_clone = Rc::clone(&flowbox_ref);
     search_entry.connect_changed(move |entry| {
         filter_wallpapers(&flowbox_clone, entry.text());
     });
+
+    let left_box = GtkBox::new(gtk::Orientation::Horizontal, 5);
+    left_box.set_halign(gtk::Align::Start);
+    left_box.append(&search_button);
 
     let bottom_box = GtkBox::new(gtk::Orientation::Horizontal, 10);
     bottom_box.set_margin_top(10);
@@ -269,10 +258,6 @@ pub fn build_ui(app: &Application) {
     bottom_box.set_halign(gtk::Align::Fill);
     bottom_box.set_margin_start(10);
     bottom_box.set_margin_end(10);
-
-    let left_box = GtkBox::new(gtk::Orientation::Horizontal, 5);
-    left_box.append(&search_button);
-    left_box.append(&search_entry);
 
     let right_box = GtkBox::new(gtk::Orientation::Horizontal, 10);
     right_box.set_halign(gtk::Align::Center);
