@@ -257,6 +257,7 @@ pub fn build_ui(app: &Application) {
     settings_button.set_halign(gtk::Align::End);
 
     let settings_popover = gtk::Popover::new();
+    settings_popover.set_autohide(true);
     let settings_box = GtkBox::new(gtk::Orientation::Vertical, 5);
     settings_box.set_margin_start(10);
     settings_box.set_margin_end(10);
