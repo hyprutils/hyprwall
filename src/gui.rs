@@ -258,6 +258,26 @@ pub fn build_ui(app: &Application) {
 
     let settings_popover = gtk::Popover::new();
     settings_popover.set_autohide(true);
+
+    let settings_popover_clone = settings_popover.clone();
+    let key_controller = gtk::EventControllerKey::new();
+    key_controller.connect_key_pressed(move |_, key, _, _| {
+        if key == gdk::Key::Escape {
+            settings_popover_clone.popdown();
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    settings_popover.add_controller(key_controller);
+
+    let settings_popover_clone = settings_popover.clone();
+    let click_controller = gtk::GestureClick::new();
+    click_controller.connect_released(move |_, _, _, _| {
+        settings_popover_clone.popdown();
+    });
+    settings_popover.add_controller(click_controller);
+
     let settings_box = GtkBox::new(gtk::Orientation::Vertical, 5);
     settings_box.set_margin_start(10);
     settings_box.set_margin_end(10);
