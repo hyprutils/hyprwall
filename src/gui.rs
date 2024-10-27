@@ -705,16 +705,38 @@ fn show_preview_window(path: &str, parent_widget: &impl IsA<gtk::Widget>) {
     window.set_modal(true);
     window.set_transient_for(parent_widget.root().and_downcast_ref::<gtk::Window>());
 
-    let scrolled = ScrolledWindow::new();
-    scrolled.set_hexpand(true);
-    scrolled.set_vexpand(true);
+    let spinner = gtk::Spinner::new();
+    spinner.set_hexpand(true);
+    spinner.set_vexpand(true);
+    spinner.start();
+    window.set_child(Some(&spinner));
 
-    let image = Image::from_file(path);
-    image.set_hexpand(true);
-    image.set_vexpand(true);
+    let path_buf = PathBuf::from(path);
+    let window_weak = window.downgrade();
 
-    scrolled.set_child(Some(&image));
-    window.set_child(Some(&scrolled));
+    glib::spawn_future_local(async move {
+        let file = gio::File::for_path(&path_buf);
+        let stream = match file.read_future(glib::Priority::default()).await {
+            Ok(stream) => stream,
+            Err(_) => return,
+        };
+
+        let bytes = match stream.read_bytes_future(1024 * 1024, glib::Priority::default()).await {
+            Ok(bytes) => bytes,
+            Err(_) => return,
+        };
+
+        if let Some(window) = window_weak.upgrade() {
+            if let Ok(texture) = Texture::from_file(&file) {
+                let picture = gtk::Picture::for_paintable(&texture);
+                picture.set_can_shrink(true);
+                picture.set_keep_aspect_ratio(true);
+                picture.set_hexpand(true);
+                picture.set_vexpand(true);
+                window.set_child(Some(&picture));
+            }
+        }
+    });
 
     let key_controller = gtk::EventControllerKey::new();
     let window_weak = window.downgrade();
