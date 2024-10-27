@@ -699,61 +699,81 @@ fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str
 }
 
 fn show_preview_window(path: &str, parent_widget: &impl IsA<gtk::Widget>) {
-    let window = gtk::Window::new();
-    window.set_title(Some("Preview"));
-    window.set_default_size(800, 600);
-    window.set_modal(true);
-    window.set_transient_for(parent_widget.root().and_downcast_ref::<gtk::Window>());
-
-    let spinner = gtk::Spinner::new();
-    spinner.set_hexpand(true);
-    spinner.set_vexpand(true);
-    spinner.start();
-    window.set_child(Some(&spinner));
-
-    let path_buf = PathBuf::from(path);
-    let window_weak = window.downgrade();
+    let path = path.to_string();
+    let parent = parent_widget.root().and_downcast::<gtk::Window>();
 
     glib::spawn_future_local(async move {
-        let file = gio::File::for_path(&path_buf);
-        let stream = match file.read_future(glib::Priority::default()).await {
-            Ok(stream) => stream,
-            Err(_) => return,
-        };
+        let window = gtk::Window::new();
+        window.set_title(Some("Preview"));
+        window.set_default_size(800, 600);
+        window.set_modal(true);
+        window.set_transient_for(parent.as_ref());
 
-        if stream
-            .read_bytes_future(1024 * 1024, glib::Priority::default())
-            .await
-            .is_err()
-        {
-            return;
-        }
+        let spinner = gtk::Spinner::new();
+        spinner.set_hexpand(true);
+        spinner.set_vexpand(true);
+        spinner.start();
+        window.set_child(Some(&spinner));
 
-        if let Some(window) = window_weak.upgrade() {
-            if let Ok(texture) = Texture::from_file(&file) {
-                let picture = gtk::Picture::for_paintable(&texture);
-                picture.set_can_shrink(true);
-                picture.set_keep_aspect_ratio(true);
-                picture.set_hexpand(true);
-                picture.set_vexpand(true);
-                window.set_child(Some(&picture));
+        let window_weak = window.downgrade();
+        let key_controller = gtk::EventControllerKey::new();
+        key_controller.connect_key_pressed(move |_, key, _, _| {
+            if key == gdk::Key::Escape {
+                if let Some(window) = window_weak.upgrade() {
+                    window.close();
+                }
+                glib::Propagation::Stop
+            } else {
+                glib::Propagation::Proceed
             }
-        }
-    });
+        });
+        window.add_controller(key_controller);
 
-    let key_controller = gtk::EventControllerKey::new();
-    let window_weak = window.downgrade();
-    key_controller.connect_key_pressed(move |_, key, _, _| {
-        if key == gdk::Key::Escape {
-            if let Some(window) = window_weak.upgrade() {
-                window.close();
+        window.present();
+
+        let path_buf = PathBuf::from(&path);
+        let window_weak = window.downgrade();
+
+        let (sender, receiver) = crossbeam_channel::unbounded::<Result<Texture, String>>();
+
+        std::thread::spawn(move || {
+            let file = gio::File::for_path(&path_buf);
+            match Texture::from_file(&file) {
+                Ok(texture) => {
+                    let _ = sender.send(Ok(texture));
+                }
+                Err(e) => {
+                    let _ = sender.send(Err(e.to_string()));
+                }
             }
-            glib::Propagation::Stop
-        } else {
-            glib::Propagation::Proceed
-        }
-    });
-    window.add_controller(key_controller);
+        });
 
-    window.present();
+        glib::source::idle_add_local(move || match receiver.try_recv() {
+            Ok(result) => {
+                if let Some(window) = window_weak.upgrade() {
+                    match result {
+                        Ok(texture) => {
+                            let picture = gtk::Picture::for_paintable(&texture);
+                            picture.set_can_shrink(true);
+                            picture.set_keep_aspect_ratio(true);
+                            picture.set_hexpand(true);
+                            picture.set_vexpand(true);
+                            window.set_child(Some(&picture));
+                        }
+                        Err(error) => {
+                            let error_label =
+                                gtk::Label::new(Some(&format!("Failed to load image: {}", error)));
+                            error_label.set_wrap(true);
+                            error_label.set_margin_start(10);
+                            error_label.set_margin_end(10);
+                            window.set_child(Some(&error_label));
+                        }
+                    }
+                }
+                ControlFlow::Break
+            }
+            Err(crossbeam_channel::TryRecvError::Empty) => ControlFlow::Continue,
+            Err(crossbeam_channel::TryRecvError::Disconnected) => ControlFlow::Break,
+        });
+    });
 }
