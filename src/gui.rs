@@ -284,12 +284,6 @@ pub fn build_ui(app: &Application) {
     settings_box.set_margin_top(10);
     settings_box.set_margin_bottom(10);
 
-    let sort_combo = ComboBoxText::new();
-    sort_combo.append(Some("name"), "Sort by Name");
-    sort_combo.append(Some("date"), "Sort by Date");
-    sort_combo.append(Some("size"), "Sort by Size");
-    sort_combo.set_active_id(Some("name"));
-
     let show_gifs_button = Button::with_label("GIFs Only");
     let show_gifs_active = Arc::new(AtomicBool::new(false));
     let show_gifs_active_clone = Arc::clone(&show_gifs_active);
@@ -301,14 +295,6 @@ pub fn build_ui(app: &Application) {
         filter_wallpapers_by_type(&flowbox_clone_gifs, active);
     });
 
-    let flowbox_clone_sort = Rc::clone(&flowbox_ref);
-    sort_combo.connect_changed(move |combo| {
-        if let Some(sort_type) = combo.active_id() {
-            sort_wallpapers(&flowbox_clone_sort, &sort_type);
-        }
-    });
-
-    settings_box.append(&sort_combo);
     settings_box.append(&show_gifs_button);
     settings_popover.set_child(Some(&settings_box));
     settings_popover.set_parent(&settings_button);
@@ -859,59 +845,4 @@ fn filter_wallpapers_by_type(flowbox: &Rc<RefCell<FlowBox>>, gifs_only: bool) {
     };
 
     flowbox.set_filter_func(Box::new(filter));
-}
-
-fn sort_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, sort_type: &str) {
-    let flowbox = flowbox.borrow();
-    let sort_type = sort_type.to_string();
-    let sort = move |child1: &FlowBoxChild, child2: &FlowBoxChild| {
-        let get_path = |child: &FlowBoxChild| -> Option<PathBuf> {
-            child
-                .child()
-                .and_downcast::<Button>()
-                .and_then(|b| b.tooltip_text())
-                .map(PathBuf::from)
-        };
-
-        if let (Some(path1), Some(path2)) = (get_path(child1), get_path(child2)) {
-            match sort_type.as_str() {
-                "name" => match path1.file_name().cmp(&path2.file_name()) {
-                    std::cmp::Ordering::Less => gtk::Ordering::Smaller,
-                    std::cmp::Ordering::Equal => gtk::Ordering::Equal,
-                    std::cmp::Ordering::Greater => gtk::Ordering::Larger,
-                },
-                "date" => {
-                    let time1 = path1
-                        .metadata()
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .unwrap_or_else(|| std::time::SystemTime::UNIX_EPOCH);
-                    let time2 = path2
-                        .metadata()
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .unwrap_or_else(|| std::time::SystemTime::UNIX_EPOCH);
-                    match time1.cmp(&time2) {
-                        std::cmp::Ordering::Less => gtk::Ordering::Smaller,
-                        std::cmp::Ordering::Equal => gtk::Ordering::Equal,
-                        std::cmp::Ordering::Greater => gtk::Ordering::Larger,
-                    }
-                }
-                "size" => {
-                    let size1 = path1.metadata().map(|m| m.len()).unwrap_or(0);
-                    let size2 = path2.metadata().map(|m| m.len()).unwrap_or(0);
-                    match size1.cmp(&size2) {
-                        std::cmp::Ordering::Less => gtk::Ordering::Smaller,
-                        std::cmp::Ordering::Equal => gtk::Ordering::Equal,
-                        std::cmp::Ordering::Greater => gtk::Ordering::Larger,
-                    }
-                }
-                _ => gtk::Ordering::Equal,
-            }
-        } else {
-            gtk::Ordering::Equal
-        }
-    };
-
-    flowbox.set_sort_func(Box::new(sort));
 }
