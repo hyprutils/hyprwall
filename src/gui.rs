@@ -721,13 +721,13 @@ fn show_preview_window(path: &str, parent_widget: &impl IsA<gtk::Widget>) {
             Err(_) => return,
         };
 
-        let bytes = match stream
+        if stream
             .read_bytes_future(1024 * 1024, glib::Priority::default())
             .await
+            .is_err()
         {
-            Ok(bytes) => bytes,
-            Err(_) => return,
-        };
+            return;
+        }
 
         if let Some(window) = window_weak.upgrade() {
             if let Ok(texture) = Texture::from_file(&file) {
