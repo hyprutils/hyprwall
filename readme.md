@@ -17,6 +17,7 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 - **Multiple monitors** - Hyprwall supports setting wallpapers on **Multiple** monitors at once.
 - **True async** - Hyprwall is built to be asynchronous, it uses tokio to run commands in this manner massively improving performance.
 - **Cli args** - Hyprwall supports command line arguments, to view these type **`hyprwall --help`**, **--restore** is one of them, if you wish you can restore your last used wallpaper in the gui with this argument.
+- **GIF support** - Hyprwall supports GIFs, but only if the **swww** backend is used.
 - **Supports swaybg, swww, wallutils, feh, and hyprpaper** - Hyprwall supports a variety of wallpaper backends, so you can use it with your preferred wallpaper tool.
 
 <div align='center'>
