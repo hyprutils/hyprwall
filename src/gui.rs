@@ -6,9 +6,7 @@ use gtk::{
     gio, glib,
     prelude::*,
     Application, ApplicationWindow, Box as GtkBox, Button, ComboBoxText, EventControllerMotion,
-    FlowBox, Image, MessageDialog, ScrolledWindow,
-    SearchEntry,
-    FlowBoxChild,
+    FlowBox, FlowBoxChild, Image, MessageDialog, ScrolledWindow, SearchEntry,
 };
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
@@ -232,7 +230,6 @@ pub fn build_ui(app: &Application) {
         is_expanded: false,
     }));
 
-    let flowbox_clone = Rc::clone(&flowbox_ref);
     let search_state_clone = Rc::clone(&search_state);
     search_button.connect_clicked(move |_| {
         let mut state = search_state_clone.borrow_mut();
@@ -256,17 +253,11 @@ pub fn build_ui(app: &Application) {
     });
     search_entry.add_controller(controller);
 
-    let search_state_clone = Rc::clone(&search_state);
     let flowbox_clone = Rc::clone(&flowbox_ref);
     search_entry.connect_activate(move |entry| {
-        let mut state = search_state_clone.borrow_mut();
-        state.is_expanded = false;
-        state.search_entry.set_visible(false);
-        state.search_button.set_visible(true);
         filter_wallpapers(&flowbox_clone, entry.text());
     });
 
-    let search_state_clone = Rc::clone(&search_state);
     let flowbox_clone = Rc::clone(&flowbox_ref);
     search_entry.connect_changed(move |entry| {
         filter_wallpapers(&flowbox_clone, entry.text());
@@ -690,12 +681,12 @@ fn refresh_images(flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCell<Imag
 fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str>) {
     let search_text = search_text.as_ref().to_lowercase();
     let flowbox = flowbox.borrow();
-    
+
     let filter = move |child: &FlowBoxChild| {
         if search_text.is_empty() {
             return true;
         }
-        
+
         if let Some(button) = child.child().and_downcast::<Button>() {
             if let Some(tooltip) = button.tooltip_text() {
                 return tooltip.to_lowercase().contains(&search_text);
@@ -703,6 +694,6 @@ fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str
         }
         false
     };
-    
+
     flowbox.set_filter_func(Box::new(filter));
 }
