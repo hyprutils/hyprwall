@@ -804,7 +804,7 @@ checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
 name = "hyprwall"
-version = "0.1.6"
+version = "0.1.7-pre.1"
 dependencies = [
  "clap",
  "crossbeam-channel",
