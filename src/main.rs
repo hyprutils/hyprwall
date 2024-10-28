@@ -150,9 +150,7 @@ along with this program; if not, see
         return;
     }
 
-    let app = Application::builder()
-        .application_id("hyprwall")
-        .build();
+    let app = Application::builder().application_id("hyprwall").build();
 
     app.connect_activate(gui::build_ui);
     app.run();
