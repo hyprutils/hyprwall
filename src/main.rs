@@ -83,7 +83,7 @@ fn main() {
                 .expect("Time went backwards")
                 .as_secs()
                 / (365 * 24 * 60 * 60));
-        println!("Copyright (C) {} Nyx, Adam Perkowski", current_year);
+        println!("Copyright (C) {} HyprUtils", current_year);
         println!(
             "\nThis program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
