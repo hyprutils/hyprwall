@@ -151,7 +151,7 @@ along with this program; if not, see
     }
 
     let app = Application::builder()
-        .application_id("nnyyxxxx.hyprwall")
+        .application_id("hyprwall")
         .build();
 
     app.connect_activate(gui::build_ui);
