@@ -475,21 +475,19 @@ fn load_images(
 }
 
 fn load_last_path() -> Option<PathBuf> {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = CONFIG_FILE.replace("~", "$HOME");
     fs::File::open(config_path).ok().and_then(|mut file| {
         let mut contents = String::new();
         file.read_to_string(&mut contents).ok()?;
         contents
             .lines()
             .find(|line| line.starts_with("folder = "))
-            .map(|line| {
-                PathBuf::from(shellexpand::tilde(line.trim_start_matches("folder = ")).into_owned())
-            })
+            .map(|line| PathBuf::from(line.trim_start_matches("folder = ").replace("~", "$HOME")))
     })
 }
 
 pub fn save_last_path(path: &Path) {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = CONFIG_FILE.replace("~", "$HOME");
     let mut contents = String::new();
 
     if let Ok(mut file) = fs::File::open(&config_path) {
@@ -563,7 +561,7 @@ pub fn custom_error_popup(title: &str, text: &str, modal: bool) {
 }
 
 pub fn load_last_wallpaper() -> Option<String> {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = CONFIG_FILE.replace("~", "$HOME");
     fs::File::open(config_path).ok().and_then(|mut file| {
         let mut contents = String::new();
         file.read_to_string(&mut contents).ok()?;
@@ -575,7 +573,7 @@ pub fn load_last_wallpaper() -> Option<String> {
 }
 
 pub fn save_last_wallpaper(path: &str) {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = CONFIG_FILE.replace("~", "$HOME");
     let mut contents = String::new();
 
     if let Ok(mut file) = fs::File::open(&config_path) {
@@ -606,7 +604,7 @@ pub fn save_last_wallpaper(path: &str) {
 }
 
 pub fn save_wallpaper_backend(backend: &WallpaperBackend) {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = CONFIG_FILE.replace("~", "$HOME");
     let mut contents = String::new();
 
     if let Ok(mut file) = fs::File::open(&config_path) {
@@ -643,7 +641,7 @@ pub fn save_wallpaper_backend(backend: &WallpaperBackend) {
 }
 
 pub fn load_wallpaper_backend() -> Option<WallpaperBackend> {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = CONFIG_FILE.replace("~", "$HOME");
     fs::File::open(config_path).ok().and_then(|mut file| {
         let mut contents = String::new();
         file.read_to_string(&mut contents).ok()?;

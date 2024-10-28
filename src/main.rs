@@ -5,7 +5,7 @@ use gtk::{prelude::*, Application};
 use lazy_static::lazy_static;
 use parking_lot::Mutex;
 use rand::seq::SliceRandom;
-use shellexpand::tilde;
+use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -157,12 +157,12 @@ along with this program; if not, see
 }
 
 fn config_exists() -> bool {
-    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let config_path = format!("{}/.config/hyprwall/config.ini", env::var("HOME").unwrap());
     Path::new(&config_path).exists()
 }
 
 fn generate_config() {
-    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let config_path = format!("{}/.config/hyprwall/config.ini", env::var("HOME").unwrap());
     let config_dir = Path::new(&config_path).parent().unwrap();
     std::fs::create_dir_all(config_dir).expect("Failed to create config directory");
 
@@ -194,7 +194,7 @@ fn set_backend(backend: &str) {
 
 fn set_folder(folder: &Path) {
     if folder.is_dir() {
-        let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+        let config_path = format!("{}/.config/hyprwall/config.ini", env::var("HOME").unwrap());
         let mut contents = String::new();
 
         if let Ok(mut file) = fs::File::open(&config_path) {
@@ -243,7 +243,7 @@ fn set_random_wallpaper() {
 }
 
 async fn get_random_wallpaper() -> Result<String, String> {
-    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let config_path = format!("{}/.config/hyprwall/config.ini", env::var("HOME").unwrap());
     let contents = tokio::fs::read_to_string(&config_path)
         .await
         .map_err(|e| format!("Failed to read config file: {}", e))?;
@@ -254,7 +254,7 @@ async fn get_random_wallpaper() -> Result<String, String> {
         .map(|line| line.trim_start_matches("folder = "))
         .ok_or_else(|| "Wallpaper folder not found in config".to_string())?;
 
-    let folder_path = PathBuf::from(tilde(folder).into_owned());
+    let folder_path = PathBuf::from(folder.replace("~", &env::var("HOME").unwrap()));
 
     let mut entries = tokio::fs::read_dir(&folder_path)
         .await
@@ -452,7 +452,8 @@ async fn ensure_hyprpaper_running() -> Result<(), String> {
     if !is_process_running("hyprpaper").await {
         println!("hyprpaper is not running. Attempting to start it...");
 
-        let hyprpaper_config_path = tilde("~/.config/hypr/hyprpaper.conf").into_owned();
+        let hyprpaper_config_path =
+            format!("{}/.config/hyprwall/config.ini", env::var("HOME").unwrap());
         let hyprpaper_config_path = Path::new(&hyprpaper_config_path);
 
         if !hyprpaper_config_path.exists() {
