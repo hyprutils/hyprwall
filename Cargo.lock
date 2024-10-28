@@ -326,7 +326,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4c29071a9e92337d8270a85cb0510cda4ac478be26d09ad027cc1d081911b19"
 dependencies = [
  "gdk-pixbuf-sys",
- "gio 0.20.4",
+ "gio",
  "glib 0.20.4",
  "libc",
 ]
@@ -353,7 +353,7 @@ dependencies = [
  "cairo-rs",
  "gdk-pixbuf",
  "gdk4-sys",
- "gio 0.20.4",
+ "gio",
  "glib 0.20.4",
  "libc",
  "pango",
@@ -392,25 +392,6 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
-
-[[package]]
-name = "gio"
-version = "0.18.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4fc8f532f87b79cbc51a79748f16a6828fb784be93145a322fa14d06d354c73"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-io",
- "futures-util",
- "gio-sys 0.18.1",
- "glib 0.18.5",
- "libc",
- "once_cell",
- "pin-project-lite",
- "smallvec",
- "thiserror",
-]
 
 [[package]]
 name = "gio"
@@ -633,7 +614,7 @@ dependencies = [
  "futures-channel",
  "gdk-pixbuf",
  "gdk4",
- "gio 0.20.4",
+ "gio",
  "glib 0.20.4",
  "graphene-rs",
  "gsk4",
@@ -704,7 +685,6 @@ version = "0.1.7-pre.1"
 dependencies = [
  "clap",
  "crossbeam-channel",
- "gio 0.18.4",
  "glib 0.18.5",
  "gtk4",
  "lazy_static",
@@ -820,7 +800,7 @@ version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa26aa54b11094d72141a754901cd71d9356432bb8147f9cace8d9c7ba95f356"
 dependencies = [
- "gio 0.20.4",
+ "gio",
  "glib 0.20.4",
  "libc",
  "pango-sys",
