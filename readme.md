@@ -4,7 +4,7 @@
 
 An unofficial GUI for setting wallpapers with multiple backends, built with GTK4 and Rust. 🚀🦀<br>
 
-![Logo](.github/hyprwall.png)
+<img src='hyprwall.png' width='200' height='200'>
 
 </div>
 
