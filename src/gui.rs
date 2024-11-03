@@ -402,7 +402,9 @@ fn load_images(
                 };
 
                 let path_clone = path.to_str().unwrap_or("").to_string();
-                if s.send((texture, path_clone)).is_err() {
+                let path_with_tilde =
+                    path_clone.replace(&std::env::var("HOME").unwrap_or_default(), "~");
+                if s.send((texture, path_with_tilde)).is_err() {
                     cancel_flag_clone.store(true, Ordering::Relaxed);
                 }
             });
@@ -475,7 +477,7 @@ fn load_images(
 }
 
 fn load_last_path() -> Option<PathBuf> {
-    let config_path = shellexpand::tilde(CONFIG_FILE).into_owned();
+    let config_path = shellexpand::tilde("~/.config/hyprwall/config.ini").into_owned();
     fs::File::open(config_path).ok().and_then(|mut file| {
         let mut contents = String::new();
         file.read_to_string(&mut contents).ok()?;
@@ -496,14 +498,18 @@ pub fn save_last_path(path: &Path) {
         let _ = file.read_to_string(&mut contents);
     }
 
+    let path_with_tilde = path
+        .to_string_lossy()
+        .replace(&std::env::var("HOME").unwrap_or_default(), "~");
+
     if let Some(pos) = contents.find("folder = ") {
         let end_pos = contents[pos..]
             .find('\n')
             .map(|p| p + pos)
             .unwrap_or(contents.len());
-        contents.replace_range(pos..end_pos, &format!("folder = {}", path.display()));
+        contents.replace_range(pos..end_pos, &format!("folder = {}", path_with_tilde));
     } else {
-        contents.push_str(&format!("folder = {}\n", path.display()));
+        contents.push_str(&format!("folder = {}\n", path_with_tilde));
     }
 
     if let Ok(mut file) = fs::OpenOptions::new()
@@ -529,7 +535,11 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
                                 Some("png" | "jpg" | "jpeg")
                             )
                         {
-                            Some(path)
+                            Some(
+                                path.to_string_lossy()
+                                    .into_owned()
+                                    .replace(&std::env::var("HOME").unwrap_or_default(), "~"),
+                            )
                         } else {
                             None
                         }
@@ -538,9 +548,7 @@ fn set_random_wallpaper(_flowbox: &Rc<RefCell<FlowBox>>, image_loader: &Rc<RefCe
                 .collect();
 
             if let Some(random_image) = images.choose(&mut rand::thread_rng()) {
-                if let Some(path_str) = random_image.to_str() {
-                    crate::set_wallpaper(path_str.to_string());
-                }
+                crate::set_wallpaper(random_image.to_string());
             }
         }
     }
@@ -699,7 +707,7 @@ fn filter_wallpapers(flowbox: &Rc<RefCell<FlowBox>>, search_text: impl AsRef<str
 }
 
 fn show_preview_window(path: &str, parent_widget: &impl IsA<gtk::Widget>) {
-    let path = path.to_string();
+    let path = shellexpand::tilde(path).into_owned();
     let parent = parent_widget.root().and_downcast::<gtk::Window>();
 
     glib::spawn_future_local(async move {
