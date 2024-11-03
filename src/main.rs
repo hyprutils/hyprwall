@@ -63,6 +63,16 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
+    let cli = Cli {
+        wallpaper: cli
+            .wallpaper
+            .map(|p| PathBuf::from(shellexpand::tilde(&p.to_string_lossy()).into_owned())),
+        folder: cli
+            .folder
+            .map(|p| PathBuf::from(shellexpand::tilde(&p.to_string_lossy()).into_owned())),
+        ..cli
+    };
+
     let rt = Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
 
@@ -116,8 +126,12 @@ along with this program; if not, see
         set_folder(&folder);
     }
 
-    if let Some(wallpaper) = cli.wallpaper {
-        let wallpaper_path = wallpaper.to_string_lossy().into_owned();
+    if let Some(wallpaper) = &cli.wallpaper {
+        let wallpaper_path = wallpaper
+            .to_string_lossy()
+            .replace(&std::env::var("HOME").unwrap_or_default(), "~");
+
+        let rt = Runtime::new().expect("Failed to create Tokio runtime");
         rt.block_on(async {
             let current_backend = *CURRENT_BACKEND.lock();
             if current_backend == WallpaperBackend::None {
@@ -195,7 +209,11 @@ fn set_backend(backend: &str) {
 }
 
 fn set_folder(folder: &Path) {
-    if folder.is_dir() {
+    let folder_str = folder.to_string_lossy();
+    let folder_expanded = shellexpand::tilde(&folder_str).into_owned();
+    let folder_path = Path::new(&folder_expanded);
+
+    if folder_path.is_dir() {
         let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
         let mut contents = String::new();
 
@@ -204,7 +222,8 @@ fn set_folder(folder: &Path) {
         }
 
         let mut lines: Vec<String> = contents.lines().map(String::from).collect();
-        let folder_line = format!("folder = {}", folder.display());
+        let folder_with_tilde = folder_str.replace(&std::env::var("HOME").unwrap_or_default(), "~");
+        let folder_line = format!("folder = {}", folder_with_tilde);
 
         if let Some(pos) = lines.iter().position(|line| line.starts_with("folder = ")) {
             lines[pos] = folder_line;
@@ -222,7 +241,7 @@ fn set_folder(folder: &Path) {
             let _ = writeln!(file, "{}", new_contents);
         }
 
-        println!("Wallpaper folder set to: {}", folder.display());
+        println!("Wallpaper folder set to: {}", folder_with_tilde);
     } else {
         eprintln!("Specified folder does not exist or is not a directory.");
     }
@@ -245,7 +264,7 @@ fn set_random_wallpaper() {
 }
 
 async fn get_random_wallpaper() -> Result<String, String> {
-    let config_path = tilde("~/.config/hyprwall/config.ini").into_owned();
+    let config_path = shellexpand::tilde("~/.config/hyprwall/config.ini").into_owned();
     let contents = tokio::fs::read_to_string(&config_path)
         .await
         .map_err(|e| format!("Failed to read config file: {}", e))?;
@@ -256,7 +275,7 @@ async fn get_random_wallpaper() -> Result<String, String> {
         .map(|line| line.trim_start_matches("folder = "))
         .ok_or_else(|| "Wallpaper folder not found in config".to_string())?;
 
-    let folder_path = PathBuf::from(tilde(folder).into_owned());
+    let folder_path = PathBuf::from(shellexpand::tilde(folder).into_owned());
 
     let mut entries = tokio::fs::read_dir(&folder_path)
         .await
@@ -272,21 +291,25 @@ async fn get_random_wallpaper() -> Result<String, String> {
                 Some("png" | "jpg" | "jpeg")
             )
         {
-            wallpapers.push(path);
+            let path_str = path
+                .to_string_lossy()
+                .replace(&std::env::var("HOME").unwrap_or_default(), "~");
+            wallpapers.push(path_str);
         }
     }
 
     wallpapers
         .choose(&mut rand::thread_rng())
         .ok_or_else(|| "No wallpapers found".to_string())
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| p.to_string())
 }
 
 pub fn set_wallpaper(path: String) {
+    let path = path.replace(&std::env::var("HOME").unwrap_or_default(), "~");
     glib::spawn_future_local(async move {
         match set_wallpaper_internal(&path).await {
             Ok(_) => {
-                println!("Wallpaper set successfully");
+                println!("Wallpaper set successfully: {}", path);
                 gui::save_last_wallpaper(&path);
             }
             Err(e) => {
@@ -298,6 +321,7 @@ pub fn set_wallpaper(path: String) {
 }
 
 async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
+    let path = shellexpand::tilde(path).into_owned();
     let current_backend = *CURRENT_BACKEND.lock();
 
     kill_other_backends(current_backend).await;
@@ -307,11 +331,11 @@ async fn set_wallpaper_internal(path: &str) -> Result<(), String> {
     println!("Attempting to set wallpaper: {}", path);
 
     let result = match current_backend {
-        WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(path).await,
-        WallpaperBackend::Swaybg => set_swaybg_wallpaper(path).await,
-        WallpaperBackend::Swww => set_swww_wallpaper(path).await,
-        WallpaperBackend::Wallutils => set_wallutils_wallpaper(path).await,
-        WallpaperBackend::Feh => set_feh_wallpaper(path).await,
+        WallpaperBackend::Hyprpaper => set_hyprpaper_wallpaper(&path).await,
+        WallpaperBackend::Swaybg => set_swaybg_wallpaper(&path).await,
+        WallpaperBackend::Swww => set_swww_wallpaper(&path).await,
+        WallpaperBackend::Wallutils => set_wallutils_wallpaper(&path).await,
+        WallpaperBackend::Feh => set_feh_wallpaper(&path).await,
         WallpaperBackend::None => Err("No wallpaper backend set".to_string()),
     };
 
