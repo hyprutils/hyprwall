@@ -39,7 +39,7 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 ## Installation
 
 ### GitHub Releases
-See Hyprwall's [releases page](https://github.com/nnyyxxxx/hyprwall/releases) for downloadable binaries.
+See Hyprwall's [releases page](https://github.com/hyprutils/hyprwall/releases) for downloadable binaries.
 
 ### Arch Linux
 There are 2 different [AUR](https://aur.archlinux.org) packages available:
@@ -63,7 +63,7 @@ paru -S <package>
 1. Install Rust (preferably `rustup`) through your distro's package or [the official script](https://www.rust-lang.org/tools/install)
 2. Install `git`, `pango`, and `gtk4`
 3. Clone this repository:
-`git clone https://github.com/nnyyxxxx/hyprwall && cd hyprwall`
+`git clone https://github.com/hyprutils/hyprwall && cd hyprwall`
 4. Compile the app with `cargo build --release` or run it directly with `cargo run --release`
 
 ## TODO:
