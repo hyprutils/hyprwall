@@ -38,6 +38,8 @@ An unofficial GUI for setting wallpapers with multiple backends, built with GTK4
 
 ## Installation
 
+[![Packaging status](https://repology.org/badge/vertical-allrepos/hyprwall.svg)](https://repology.org/project/hyprwall/versions)
+
 ### GitHub Releases
 See Hyprwall's [releases page](https://github.com/hyprutils/hyprwall/releases) for downloadable binaries.
 
