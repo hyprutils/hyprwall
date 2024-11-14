@@ -66,9 +66,27 @@ fn main() {
     let cli = Cli {
         wallpaper: cli
             .wallpaper
+            .map(|p| {
+                if p.is_relative() {
+                    std::env::current_dir()
+                        .map(|cur| cur.join(p.clone()))
+                        .unwrap_or(p)
+                } else {
+                    p
+                }
+            })
             .map(|p| PathBuf::from(shellexpand::tilde(&p.to_string_lossy()).into_owned())),
         folder: cli
             .folder
+            .map(|p| {
+                if p.is_relative() {
+                    std::env::current_dir()
+                        .map(|cur| cur.join(p.clone()))
+                        .unwrap_or(p)
+                } else {
+                    p
+                }
+            })
             .map(|p| PathBuf::from(shellexpand::tilde(&p.to_string_lossy()).into_owned())),
         ..cli
     };
