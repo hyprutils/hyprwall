@@ -13,7 +13,7 @@ use rand::seq::SliceRandom;
 use rayon::prelude::*;
 use std::{
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, VecDeque},
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
@@ -28,7 +28,7 @@ const CONFIG_FILE: &str = "~/.config/hyprwall/config.ini";
 const CACHE_SIZE: usize = 100;
 
 struct ImageCache {
-    cache: HashMap<PathBuf, gdk::Texture>,
+    cache: BTreeMap<PathBuf, gdk::Texture>,
     order: VecDeque<PathBuf>,
 }
 
@@ -42,7 +42,7 @@ struct ImageLoader {
 impl ImageCache {
     fn new() -> Self {
         Self {
-            cache: HashMap::with_capacity(CACHE_SIZE),
+            cache: BTreeMap::new(),
             order: VecDeque::with_capacity(CACHE_SIZE),
         }
     }
