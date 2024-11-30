@@ -2,9 +2,10 @@
 
 <h2>Hyprwall <img src='https://raw.githubusercontent.com/hyprutils/.github/refs/heads/main/hyprutils_transparent.png'width='18' height='18'></h2>
 
-An unofficial GUI for setting wallpapers with multiple backends, built with GTK4 and Rust. 🚀🦀<br>
+<img src='hyprwall.png' width='200' height='200'><br>
 
-<img src='hyprwall.png' width='200' height='200'>
+[![Grind Compliant](https://img.shields.io/badge/Grind-Compliant-blue)](https://github.com/The-Grindhouse/guidelines)<br>
+An unofficial GUI for setting wallpapers with multiple backends, built with GTK4 and Rust. 🚀🦀<br>
 
 </div>
 
